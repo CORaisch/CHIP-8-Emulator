@@ -1,0 +1,6 @@
+#+TITLE: CHIP-8 Emulator
+#+TOC:nil
+
+*TODOs:
+** verify disassembler
+** implement opcode functionality
