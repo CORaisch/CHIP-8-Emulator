@@ -33,7 +33,7 @@ int main(int argc, char** argv)
     // print ROM binary
     CHIP_8.print_ROM(lenROM, nMemMapCols);
 
-    // disassemle rom code
+    // disassemble rom code
     printf("######## DISASSEMBLED CODE ########\n");
     for(size_t i=0; i<lenROM; i+=2)
     {
