@@ -18,7 +18,7 @@ int main(int argc, char** argv)
     /* read in a CHIP8 rom */
     // open file stream
     FILE *pfRom;
-    strFilename = "../roms/MAZE"; // set path to default rom
+    strFilename = "../roms/FISHIE"; // set path to default rom
     // parse commandline arguments
     if(!parseArgs(argc, argv))
         return EXIT_FAILURE;
