@@ -51,7 +51,10 @@ int main(int argc, char** argv)
     printf("######## DISASSEMBLED CODE ########\n");
     for(int i = 0x200; i < 0x200+nBytesFile; ++i)
     {
-        uint16_t command = (chip8Memory[i++] << 8) | chip8Memory[i];
+        // fetch command
+        uint16_t command = chip8Memory[i++];
+        command = (command << 8) | chip8Memory[i];
+        // disassemble command
         disassemble(command, i-1);
     }
 
@@ -143,7 +146,7 @@ void printCodeBinary(uint8_t *mem, int nBytes, int cols)
 
 void disassemble(uint16_t cmd, int pc)
 {
-    // read opcode
+    // read opcode (most significant nibble at chip-8)
     uint8_t opcode = cmd >> 12;
 
     // handle each opcode
