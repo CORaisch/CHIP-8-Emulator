@@ -17,8 +17,8 @@ public:
     int fetch_command();
     int exec_command();
     void disassemble_command();
-    void print_memory_map(int cols);
-    void print_ROM(int nBytes, int cols);
+    void print_memory_map(int _cols);
+    void print_ROM(int _len, int _cols);
 
 private:
     uint8_t *memory;

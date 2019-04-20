@@ -3,6 +3,7 @@
 chip8::~chip8()
 {
     delete[] memory;
+    delete[] stack;
     delete[] V;
 }
 
@@ -252,29 +253,29 @@ void chip8::disassemble_command()
     }
 }
 
-void chip8::print_memory_map(int cols)
+void chip8::print_memory_map(int _cols)
 {
     printf("######## MEMORY MAP ########\n");
-    int rows = 4096/cols;
+    int rows = 4096/_cols;
     for(int iy = 0; iy < rows; ++iy)
     {
-        printf("0x%03x: ", cols*iy);
-        for(int ix = 0; ix < cols; ++ix)
-            printf("%02x ", memory[cols*iy + ix]);
+        printf("0x%03x: ", _cols*iy);
+        for(int ix = 0; ix < _cols; ++ix)
+            printf("%02x ", memory[_cols*iy + ix]);
         printf("\n");
     }
 }
 
-void chip8::print_ROM(int nBytes, int cols)
+void chip8::print_ROM(int _len, int _cols)
 {
     printf("######## ROM CODE ########\n");
     int rows;
-    nBytes % cols == 0 ? rows = nBytes/cols : rows = nBytes/cols + 1;
+    _len % _cols == 0 ? rows = _len/_cols : rows = _len/_cols + 1;
     for(int iy = 0; iy < rows; ++iy)
     {
-        printf("0x%03x: ", 0x200+(cols*iy));
-        for(int ix = 0; ix < cols; ++ix)
-            printf("%02x ", memory[0x200+(cols*iy + ix)]);
+        printf("0x%03x: ", 0x200+(_cols*iy));
+        for(int ix = 0; ix < _cols; ++ix)
+            printf("%02x ", memory[0x200+(_cols*iy + ix)]);
         printf("\n");
     }
 }
