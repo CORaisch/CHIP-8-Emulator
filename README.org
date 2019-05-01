@@ -4,3 +4,11 @@
 * TODOs:
 ** verify disassembler
 ** implement opcode functionality
+*** missing opcodes:
+**** CLS
+**** DRW Vx, Vy, nibble
+**** SKP Vx
+**** SKNP Vx
+**** LD Vx, K
+**** LD F, Vx
+*** verify opcode functionality

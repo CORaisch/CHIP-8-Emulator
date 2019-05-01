@@ -6,7 +6,7 @@ bool parseArgs(int argc, char** argv);
 void printUsage();
 
 /* globals */
-std::string strFilename = "../roms/MAZE";
+std::string strFilename = "../roms/FISHIE";
 int nMemMapCols = 16;
 
 int main(int argc, char** argv)
@@ -34,13 +34,21 @@ int main(int argc, char** argv)
     CHIP_8.print_ROM(lenROM, nMemMapCols);
 
     // disassemble rom code
-    printf("######## DISASSEMBLED CODE ########\n");
-    for(size_t i=0; i<lenROM; i+=2)
+    printf("######## START EMULATION ########\n");
+    while(CHIP_8.is_running())
     {
         // fetch command
-        CHIP_8.fetch_command();
-        // disassemble command
-        CHIP_8.disassemble_command();
+        int PC = CHIP_8.fetch_command();
+        // execute command
+        if(CHIP_8.exec_command() < 0)
+        {
+            fprintf(stderr, "ERROR: some command couldn't be executed. Emulation will be stopped.\n");
+            break;
+        }
+        // DEBUG print memory map
+        printf("Executing ROM address 0x%03x\n", PC);
+        // CHIP_8.print_memory(nMemMapCols);
+        CHIP_8.print_registers();
     }
 
     return EXIT_SUCCESS;

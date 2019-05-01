@@ -4,6 +4,9 @@ project (CHIP-8_Emulator)
 set (CMAKE_CXX_STANDARD 11)
 
 include_directories (${PROJECT_SOURCE_DIR}/include)
-file(GLOB SRC_FILES ${PROJECT_SOURCE_DIR}/src/*.cpp)
 
-add_executable (chip8-disassembly ${SRC_FILES})
+# make disassembler
+add_executable (chip8-disassembly src/chip8disassembler.cpp src/chip8.cpp)
+
+# make emulator
+add_executable (chip8-emulate src/chip8emulator.cpp src/chip8.cpp)

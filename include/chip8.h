@@ -14,10 +14,13 @@ public:
 
     void init();
     int load_ROM(std::string _filename);
+    bool is_running();
     int fetch_command();
     int exec_command();
     void disassemble_command();
-    void print_memory_map(int _cols);
+    void print_complete_memory_map(int _cols);
+    void print_memory(int _cols);
+    void print_registers();
     void print_ROM(int _len, int _cols);
 
 private:
@@ -30,6 +33,9 @@ private:
     uint16_t ST;
     uint16_t DT;
     uint16_t I;
+
+    const uint16_t FAIL_COMMAND = 0xFFFF; // NOTE 0xFFFF is an invalid opcode, so it will not interfere with other commands
+    bool running;
 };
 
 #endif
