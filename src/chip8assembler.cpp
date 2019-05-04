@@ -5,6 +5,8 @@
 #include <streambuf>
 #include <fstream>
 #include <vector>
+#include <map>
+#include <deque>
 
 /* function prototypes */
 bool parseArgs(int argc, char** argv);
@@ -20,6 +22,7 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
 
     // open file stream
+    printf("assemble file \"%s\"\n", strFilename.c_str());
     std::string strCode;
     std::ifstream stream(strFilename.c_str());
     // reserve number of chars needed
@@ -31,8 +34,8 @@ int main(int argc, char** argv)
 
     // iterate file char-wise and cut whitespace, newlines and comments - any different symbol is treated as token
     char sWhitespace = ' '; char sIndent = '\t'; char sNewline = '\n'; char sComment = '#'; char sComma = ','; char sMarker = ':';
-    std::vector<std::vector<std::string>> tokens;
-    std::vector<std::string> tokensLine;
+    std::vector<std::deque<std::string>> tokens;
+    std::deque<std::string> tokensLine;
     for(std::string::size_type p = 0; p < strCode.size(); ++p)
     {
         // extract all tokens of current line
@@ -65,6 +68,7 @@ int main(int argc, char** argv)
     }
 
     // beg DEBUG
+    printf("#### PARSED ASSEMBLY ####\n");
     for(size_t i=0; i<tokens.size(); ++i)
     {
         printf("%li: ", i);
@@ -72,9 +76,37 @@ int main(int argc, char** argv)
             printf("%s ", t.c_str());
         printf("\n");
     }
+    printf("\n");
     // end DEBUG
 
-    // TODO transform tokens to machine code
+    // iterate over each line of assambly code and transform it to machine code
+    printf("#### ASSEMBLY OUTPUT ####\n");
+    std::map<std::string, uint16_t> markers;
+    for(size_t i=0; i<tokens.size(); ++i)
+    {
+        std::string mnemonic = tokens[i].front();
+        // check if line starts with JP-marker -> markers are only allowed to be defined at the beginning of a line
+        if(mnemonic.back() == ':')
+        {
+            // extract marker
+            mnemonic.pop_back();
+            markers.insert(std::pair<std::string, uint16_t>(mnemonic, 0x200+uint16_t(i))); // store PC address pitched by 0x200, since this is the start address of each CHIP-8 programme
+            // update mnemonic
+            tokens[i].pop_front();
+            mnemonic = tokens[i].front();
+        }
+
+        // TODO switch for mnemonics and transform to machinecode
+        printf("line: %li, Mnemonic: %s\n", i, mnemonic.c_str());
+    }
+    printf("\n");
+
+    // beg DEBUG
+    printf("#### MARKERS ####\n");
+    std::map<std::string, uint16_t>::iterator it;
+    for(it=markers.begin(); it!=markers.end(); ++it)
+        printf("marker: %s -> address: 0x%03x\n", (it->first).c_str(), it->second);
+    // end DEBUG
 
     return EXIT_SUCCESS;
 }
