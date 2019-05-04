@@ -1,0 +1,15 @@
+# test code in CHIP-8 assembly
+# used for testing the CHIP-8 assembler
+
+# load 0 in V0
+LD V0, 0
+
+# increment V0 till it is 10
+loop: # this is a marker which is treated as jump location
+	ADD V0, 1
+	SE V0, 10
+	JP loop# no whitespace between token and comment
+
+# endless loop at the end of the programme
+end:
+	JP end
