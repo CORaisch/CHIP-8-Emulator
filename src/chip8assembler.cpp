@@ -35,26 +35,26 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
 
     // load mnemonic mapping to enum, which will be used later at the assembling step
-    map_mnemonic["CLS"] = CLS;
-    map_mnemonic["RET"] = RET;
-    map_mnemonic["SYS"] = SYS;
-    map_mnemonic["JP"] = JP;
-    map_mnemonic["CALL"] = CALL;
-    map_mnemonic["SE"] = SE;
-    map_mnemonic["SNE"] = SNE;
-    map_mnemonic["LD"] = LD;
-    map_mnemonic["ADD"] = ADD;
-    map_mnemonic["OR"] = OR;
-    map_mnemonic["AND"] = AND;
-    map_mnemonic["XOR"] = XOR;
-    map_mnemonic["SUB"] = SUB;
-    map_mnemonic["SHR"] = SHR;
-    map_mnemonic["SUBN"] = SUBN;
-    map_mnemonic["SHL"] = SHL;
-    map_mnemonic["RND"] = RND;
-    map_mnemonic["DRW"] = DRW;
-    map_mnemonic["SKP"] = SKP;
-    map_mnemonic["SKNP"] = SKNP;
+    map_mnemonic["CLS"] = CLS;   map_mnemonic["cls"] = CLS;
+    map_mnemonic["RET"] = RET;   map_mnemonic["ret"] = RET;
+    map_mnemonic["SYS"] = SYS;   map_mnemonic["sys"] = SYS;
+    map_mnemonic["JP"] = JP;     map_mnemonic["jp"] = JP;
+    map_mnemonic["CALL"] = CALL; map_mnemonic["call"] = CALL;
+    map_mnemonic["SE"] = SE;     map_mnemonic["se"] = SE;
+    map_mnemonic["SNE"] = SNE;   map_mnemonic["sne"] = SNE;
+    map_mnemonic["LD"] = LD;     map_mnemonic["ls"] = LD;
+    map_mnemonic["ADD"] = ADD;   map_mnemonic["add"] = ADD;
+    map_mnemonic["OR"] = OR;     map_mnemonic["or"] = OR;
+    map_mnemonic["AND"] = AND;   map_mnemonic["and"] = AND;
+    map_mnemonic["XOR"] = XOR;   map_mnemonic["xor"] = XOR;
+    map_mnemonic["SUB"] = SUB;   map_mnemonic["sub"] = SUB;
+    map_mnemonic["SHR"] = SHR;   map_mnemonic["shr"] = SHR;
+    map_mnemonic["SUBN"] = SUBN; map_mnemonic["subn"] = SUBN;
+    map_mnemonic["SHL"] = SHL;   map_mnemonic["shl"] = SHL;
+    map_mnemonic["RND"] = RND;   map_mnemonic["rnd"] = RND;
+    map_mnemonic["DRW"] = DRW;   map_mnemonic["drw"] = DRW;
+    map_mnemonic["SKP"] = SKP;   map_mnemonic["skp"] = SKP;
+    map_mnemonic["SKNP"] = SKNP; map_mnemonic["sknp"] = SKNP;
 
     // open file stream
     printf("assemble file \"%s\"\n", strFilename.c_str());
@@ -408,42 +408,146 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         break;
     }
     case SNE:
-        // TODO go on here ...
-        fprintf(stderr, "TODO implement mnemonic \"%s\"\n", mnemonic.c_str());
-        return false;
+        // check for number of args
+        if(!checknargs(mnemonic, cmd, 2, nargs)) return false;
+        // there exist 2 variants of SE, one that compares a register with constant and one that compares two registers
+        if(isRegister(command[1]) && isRegister(command[2])) // check if second arg is a register
+        {
+            // SNE Vx, Vy -> 0x9xy0
+            uint8_t Vx, Vy;
+            if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
+            if((Vy = getRegister(cmd, command[2])) == 0xFF) return false;
+            // NOTE INVARIANT: registers will be in valid range  [0,16]
+            machinecode.push_back(0x9000 | (Vx << 8) | (Vy << 4));
+        }
+        else if(isRegister(command[1]) && !isRegister(command[2]))
+        {
+            // SNE Vx, byte -> 0x4xkk
+            // check if register is in range
+            uint8_t Vx;
+            if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
+            // NOTE INVARIANT: registers will be in valid range  [0,16]
+            // check if second arg (byte) is 8 bit representable
+            if(!checkconstrange(cmd, command[2])) return false;
+            // NOTE INVARIANT: integer returned by atoi will be in [0,255] -> byte can be represented with 8 bits
+            uint8_t byte = std::atoi(command[2].c_str());
+            machinecode.push_back(0x4000 | (Vx << 8) | byte);
+        }
+        else
+        {
+            // error case, invalid arguments
+            fprintf(stderr, "ERROR: invalid arguments passed to SNE (%s)\n", cmd.c_str());
+            return false;
+        }
         break;
     case LD:
         fprintf(stderr, "TODO implement mnemonic \"%s\"\n", mnemonic.c_str());
         return false;
         break;
     case ADD:
+        // TODO go on here ...
         fprintf(stderr, "TODO implement mnemonic \"%s\"\n", mnemonic.c_str());
         return false;
         break;
     case OR:
-        fprintf(stderr, "TODO implement mnemonic \"%s\"\n", mnemonic.c_str());
-        return false;
+    {
+        // OR Vx, Vy -> 0x8xy1
+        // check if both arguments are registers
+        if(isRegister(command[1]) && isRegister(command[2]))
+        {
+            uint8_t Vx, Vy;
+            if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
+            if((Vy = getRegister(cmd, command[2])) == 0xFF) return false;
+            // NOTE INVARIANT: registers will be in valid range  [0,16]
+            machinecode.push_back(0x8001 | (Vx << 8) | (Vy << 4));
+        }
+        else
+        {
+            fprintf(stderr, "ERROR: OR can only operate on registers, like OR Vx, Vy (%s).\n", cmd.c_str());
+            return false;
+        }
         break;
+    }
     case AND:
-        fprintf(stderr, "TODO implement mnemonic \"%s\"\n", mnemonic.c_str());
-        return false;
+    {
+        // AND Vx, Vy -> 0x8xy2
+        // check if both arguments are registers
+        if(isRegister(command[1]) && isRegister(command[2]))
+        {
+            uint8_t Vx, Vy;
+            if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
+            if((Vy = getRegister(cmd, command[2])) == 0xFF) return false;
+            // NOTE INVARIANT: registers will be in valid range  [0,16]
+            machinecode.push_back(0x8002 | (Vx << 8) | (Vy << 4));
+        }
+        else
+        {
+            fprintf(stderr, "ERROR: AND can only operate on registers, like AND Vx, Vy (%s).\n", cmd.c_str());
+            return false;
+        }
         break;
+    }
     case XOR:
-        fprintf(stderr, "TODO implement mnemonic \"%s\"\n", mnemonic.c_str());
-        return false;
+    {
+        // XOR Vx, Vy -> 0x8xy3
+        // check if both arguments are registers
+        if(isRegister(command[1]) && isRegister(command[2]))
+        {
+            uint8_t Vx, Vy;
+            if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
+            if((Vy = getRegister(cmd, command[2])) == 0xFF) return false;
+            // NOTE INVARIANT: registers will be in valid range  [0,16]
+            machinecode.push_back(0x8003 | (Vx << 8) | (Vy << 4));
+        }
+        else
+        {
+            fprintf(stderr, "ERROR: XOR can only operate on registers, like XOR Vx, Vy (%s).\n", cmd.c_str());
+            return false;
+        }
         break;
+    }
     case SUB:
-        fprintf(stderr, "TODO implement mnemonic \"%s\"\n", mnemonic.c_str());
-        return false;
+    {
+        // SUB Vx, Vy -> 0x8xy5
+        // check if both arguments are registers
+        if(isRegister(command[1]) && isRegister(command[2]))
+        {
+            uint8_t Vx, Vy;
+            if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
+            if((Vy = getRegister(cmd, command[2])) == 0xFF) return false;
+            // NOTE INVARIANT: registers will be in valid range  [0,16]
+            machinecode.push_back(0x8005 | (Vx << 8) | (Vy << 4));
+        }
+        else
+        {
+            fprintf(stderr, "ERROR: SUB can only operate on registers, like SUB Vx, Vy (%s).\n", cmd.c_str());
+            return false;
+        }
         break;
+    }
     case SHR:
         fprintf(stderr, "TODO implement mnemonic \"%s\"\n", mnemonic.c_str());
         return false;
         break;
     case SUBN:
-        fprintf(stderr, "TODO implement mnemonic \"%s\"\n", mnemonic.c_str());
-        return false;
+    {
+        // SUBN Vx, Vy -> 0x8xy7
+        // check if both arguments are registers
+        if(isRegister(command[1]) && isRegister(command[2]))
+        {
+            uint8_t Vx, Vy;
+            if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
+            if((Vy = getRegister(cmd, command[2])) == 0xFF) return false;
+            // NOTE INVARIANT: registers will be in valid range  [0,16]
+            machinecode.push_back(0x8007 | (Vx << 8) | (Vy << 4));
+        }
+        else
+        {
+            fprintf(stderr, "ERROR: SUBN can only operate on registers, like SUBN Vx, Vy (%s).\n", cmd.c_str());
+            return false;
+        }
         break;
+    }
     case SHL:
         fprintf(stderr, "TODO implement mnemonic \"%s\"\n", mnemonic.c_str());
         return false;
@@ -464,6 +568,9 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         fprintf(stderr, "TODO implement mnemonic \"%s\"\n", mnemonic.c_str());
         return false;
         break;
+    default:
+        fprintf(stderr, "ERROR: undefined mnemonic \"%s\" (%s)\n", mnemonic, cmd.c_str());
+        return false;
     }
 
     // if reached this line everything went fine
