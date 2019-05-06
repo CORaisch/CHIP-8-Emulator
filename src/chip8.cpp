@@ -253,7 +253,7 @@ int chip8::exec_command()
         case 0x6:
             // cmd: SHR Vx {, Vy}
             V[0xF] = V[x] & 0x01;
-            V[x] /= 2;
+            V[x] >>= 1;
             break;
         case 0x7:
             // cmd: SUBN Vx, Vy
@@ -266,7 +266,7 @@ int chip8::exec_command()
         case 0xE:
             // cmd: SHL Vx {, Vy}
             V[0xF] = (V[x] & 0x80) >> 7;
-            V[x] *= 2;
+            V[x] <<= 1;
             break;
         default:
             fprintf(stderr, "WARNING unknown opcode: 0x%03x: %04x\n", PC-2, command);
