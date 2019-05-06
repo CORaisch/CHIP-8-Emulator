@@ -24,4 +24,4 @@
 *** missing functionality:
 **** implement mnemonic assembling
 **** mnemonics implemented and tested so far:
-***** CLS, RET, SYS, JP, CALL, SE, SNE, OR, AND, XOR, SUB, SUBN
+***** CLS, RET, SYS, JP, CALL, SE, ADD, SNE, OR, AND, XOR, SUB, SUBN

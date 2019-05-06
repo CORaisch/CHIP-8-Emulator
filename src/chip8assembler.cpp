@@ -18,8 +18,11 @@ bool checknargs(std::string& mnemonic, std::string& cmd, int n_required, int n_g
 bool checkaddrrange(std::string& cmd, uint16_t addr);
 bool checkregrange(std::string& cmd, int reg);
 bool checkregrange(std::string& cmd, long reg);
-bool checkconstrange(std::string& cmd, std::string& sbyte);
+bool checkconstrange(std::string& cmd, long lconst);
+bool checkconstrange(std::string& cmd, int iconst);
 uint8_t getRegister(std::string& cmd, std::string& reg);
+uint8_t getConst(std::string& cmd, std::string& sconst);
+bool checkI(std::string& cmd, std::string& arg);
 
 /* globals */
 std::string strFilename = "../code/TEST.ch8";
@@ -75,30 +78,38 @@ int main(int argc, char** argv)
     {
         // extract all tokens of current line
         // token := all chars between {whitespace, comma, newline} and {whitespace, comma, comment, newline}
-        while((strCode[p] != sNewline) && (strCode[p] != sComment))
+        while((p < strCode.size()) && (strCode[p] != sNewline) && (strCode[p] != sComment))
         {
+            // skip all symbols till {whitespace, indent, newline, comment, comma} occurs
             std::string::size_type p0 = p;
-            while((strCode[p] != sWhitespace) && (strCode[p] != sIndent) && (strCode[p] != sNewline) && (strCode[p] != sComment) && (strCode[p] != sComma)) { p++; }
-            // save word from p0 till p-1
+            for(; (p < strCode.size()) && (strCode[p] != sWhitespace) && (strCode[p] != sIndent) && (strCode[p] != sNewline) && (strCode[p] != sComment) && (strCode[p] != sComma); ++p);
+            // save word from p0 to current position p
             size_t len = p - p0;
             if(len > 0) // tokens of size 0 can occur but aren't valid (e.g. V0, 1 (whitespace after comma))
             {
                 std::string token = strCode.substr(p0, len);
                 tokensLine.emplace_back(token);
             }
-            // if {newline, comment} follows last token then start new line vector
-            if((strCode[p] == sNewline || strCode[p] == sComment) && strCode[p-1] != sMarker)
+            // if {newline, comment, EOF} follows last token then make new line token-vector
+            if(p == strCode.size() || p == strCode.size()-1 || strCode[p] == sNewline || strCode[p] == sComment)
             {
-                tokens.emplace_back(tokensLine);
-                tokensLine.clear();
+                // do not save line tokens if:
+                //// last token was a marker (we want to treat markers as if they where defined at the same line where they refer to) OR
+                //// current symbol is EOF (if file ends on last written character) OR
+                //// next symbol is EOF (if file ends on {newline, whitespace})
+                if((strCode[p-1] != sMarker) || (p == strCode.size()) || (p == strCode.size()-1))
+                {
+                    tokens.emplace_back(tokensLine);
+                    tokensLine.clear();
+                }
             }
             // if token ended on {whitespace, comma} simply skip it
             if(strCode[p] == sComma || strCode[p] == sWhitespace || strCode[p] == sIndent)
                 p++;
         }
         // if last char was a comment, skip all chars till next newline
-        if(strCode[p] == sComment)
-            while(strCode[++p] != sNewline);
+        if((p < strCode.size()) && (strCode[p] == sComment))
+            for(; (p < strCode.size()) && (strCode[p] != sNewline); ++p);
         // NOTE INVARIANT: when ending up here strCode[p] == '\n'
     }
 
@@ -111,7 +122,6 @@ int main(int argc, char** argv)
             printf("%s ", t.c_str());
         printf("\n");
     }
-    printf("\n");
     // end DEBUG
 
     /* assembly loop */
@@ -237,13 +247,23 @@ bool checkaddrrange(std::string& cmd, uint16_t addr)
     return true;
 }
 
-bool checkconstrange(std::string& cmd, std::string& sbyte)
+bool checkconstrange(std::string& cmd, long lconst)
 {
     // CHIP-8 only supports 8 bit constants so check if given number is representable by 8 bits
-    int byte = std::atoi(sbyte.c_str());
-    if(byte >> 8) // check if only least significant byte is set
+    if(lconst >> 8) // check if only least significant byte is set
     {
-        fprintf(stderr, "ERROR: constant \"%i\" is not representable by 1 byte (%s). Remember, CHIP-8 is an 8 bit machine.\n", byte, cmd.c_str());
+        fprintf(stderr, "ERROR: constant \"%i\" is not representable by 1 byte (%s). Remember, CHIP-8 is an 8 bit machine.\n", lconst, cmd.c_str());
+        return false;
+    }
+    return true;
+}
+
+bool checkconstrange(std::string& cmd, int iconst)
+{
+    // CHIP-8 only supports 8 bit constants so check if given number is representable by 8 bits
+    if(iconst >> 8) // check if only least significant byte is set
+    {
+        fprintf(stderr, "ERROR: constant \"%i\" is not representable by 1 byte (%s). Remember, CHIP-8 is an 8 bit machine.\n", iconst, cmd.c_str());
         return false;
     }
     return true;
@@ -281,6 +301,61 @@ uint8_t getRegister(std::string& cmd, std::string& reg)
     }
 }
 
+uint8_t getConst(std::string& cmd, std::string& sconst)
+{
+    // NOTE constants in CHIP-8 are always coded in 8 bit
+    uint8_t ret = 0xFF;
+    // const can be given wether coded decimal or hexadecimal
+    // if const is coded hexadecimal it must be given with prefix 0x
+    if(!sconst.substr(0, 2).compare("0x"))
+    {
+        // case: hexadecimal prefix 0x detected
+        std::string shex = sconst.substr(2, sconst.size()-1);
+        // check if rest of string is valid hexadecimal
+        if(shex.c_str()[strspn(shex.c_str(), "AaBbCcDdEeFf0123456789")] == 0)
+        {
+            // case: const is valid hexadecimal
+            long lconst = std::strtol(shex.c_str(), NULL, 16);
+            // check if const is 8 bit representable
+            if(checkconstrange(cmd, lconst))
+            {
+                // NOTE INVARIANT: const is 8 bit representable
+                ret = lconst;
+            }
+        }
+    }
+    // else: const is not hexadecimal coded
+    // check if const is decimal coded (no prefix required for decimal encoding)
+    else if(sconst.c_str()[strspn(sconst.c_str(), "0123456789")] == 0)
+    {
+        // case: const is decimal coded
+        int iconst = std::strtol(sconst.c_str(), NULL, 10);
+        // check if const is 8 bit representable
+        if(checkconstrange(cmd, iconst))
+        {
+            // NOTE INVARIANT: const is 8 bit representable
+            ret = iconst;
+        }
+    }
+    else
+    {
+        // error case: const is wether coded hexadecimal nor decimal
+        fprintf(stderr, "ERROR: constants are only allowed to be coded decimal or hexadecimal. hexadecimal coded constants need to be prefixed by \"0x\" (passed: %s).\n", cmd.c_str());
+    }
+    return ret;
+}
+
+bool checkI(std::string& cmd, std::string& arg)
+{
+    // check if arg only consits of letter 'I'
+    if(arg.compare("I"))
+    {
+        fprintf(stderr, "ERROR: required I as an argument but given %s (passed: %s).\n", arg.c_str(), cmd.c_str());
+        return false;
+    }
+    return true;
+}
+
 bool assemble(std::deque<std::string>& command, std::string& cmd)
 {
     // get mnemonic
@@ -292,32 +367,38 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
     switch(map_mnemonic[mnemonic])
     {
     case CLS:
+    {
         // check for number of args
         if(!checknargs(mnemonic, cmd, 0, nargs)) return false;
         // CLS -> 0x00E0
         machinecode.push_back(0x00E0);
         break;
+    }
     case RET:
+    {
         // check for number of args
         if(!checknargs(mnemonic, cmd, 0, nargs)) return false;
         // RET -> 0x00EE
         machinecode.push_back(0x00EE);
         break;
+    }
     case SYS:
-        fprintf(stderr, "ERROR: The mnemonic SYS is not support with this version of CHIP-8 (%s).\n", cmd.c_str());
+    {
+        fprintf(stderr, "ERROR: mnemonic SYS is not support with this version of CHIP-8 (passed: %s).\n", cmd.c_str());
         return false;
+    }
     case JP:
     {
-        // there exist 2 variants of JP, one with 1 arg and one with 2 args
-        if(nargs == 1)
+        // there exist 2 variants of JP:
+        //// JP addr
+        //// JP V0, addr
+        if(nargs == 1) // check if only one arg is passed
         {
             // JP addr -> 0x1nnn
-            // check number of arguments
-            if(!checknargs(mnemonic, cmd, 1, nargs)) return false;
             // check that arg is no register
             if(isRegister(command[1]))
             {
-                fprintf(stderr, "ERROR: JP with only one argument requires address, but register was passed (%s).\n", cmd.c_str());
+                fprintf(stderr, "ERROR: JP with only one argument requires address, but register was passed (passed: %s).\n", cmd.c_str());
                 return false;
             }
             // check if MS nibbel is unset -> else code is too big to fit in 4k memory of CHIP-8
@@ -325,12 +406,10 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
             // NOTE INVARIANT: marker is in map and most significant nibble of command[1] is 0
             machinecode.push_back(0x1000 | markers[command[1]]);
         }
-        else if(nargs == 2)
+        else if(nargs == 2) // check if two args are passed
         {
             // JP V0, addr -> Bnnn
-            // check number of arguments
-            if(!checknargs(mnemonic, cmd, 2, nargs)) return false;
-            // check if first register is V0
+            // check if first register is exactly V0
             uint8_t regno = 0;
             if(isRegister(command[1]))
             {
@@ -338,13 +417,13 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
                 regno = getRegister(cmd, command[1]);
                 if(regno != 0)
                 {
-                    fprintf(stderr, "ERROR: when JP is passed with 2 arguments, the first one needs to be exactly register V0 (%s).\n", cmd.c_str());
+                    fprintf(stderr, "ERROR: when JP is passed with 2 arguments, the first one needs to be exactly register V0 (passed: %s).\n", cmd.c_str());
                     return false;
                 }
             }
             else
             {
-                fprintf(stderr, "ERROR: when JP is passed with 2 arguments, the first one needs to be a register (%s).\n", cmd.c_str());
+                fprintf(stderr, "ERROR: when JP is passed with 2 arguments, the first one needs to be a register (passed: %s).\n", cmd.c_str());
                 return false;
             }
             // check if marker is in map
@@ -356,7 +435,7 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         else
         {
             // error case, too many args for JP
-            fprintf(stderr, "ERROR: invalid number of arguments for JP (%s).\n", cmd.c_str());
+            fprintf(stderr, "ERROR: invalid number of arguments for JP (passsed: %s).\n", cmd.c_str());
             return false;
         }
         break;
@@ -376,8 +455,10 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
     {
         // check for number of args
         if(!checknargs(mnemonic, cmd, 2, nargs)) return false;
-        // there exist 2 variants of SE, one that compares a register with constant and one that compares two registers
-        if(isRegister(command[1]) && isRegister(command[2])) // check if second arg is a register
+        // there exist 2 variants of SE:
+        //// SE Vx, Vy
+        //// SE Vx, byte
+        if(isRegister(command[1]) && isRegister(command[2])) // check if both args are registers
         {
             // SE Vx, Vy -> 0x5xy0
             uint8_t Vx, Vy;
@@ -386,32 +467,35 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
             // NOTE INVARIANT: registers will be in valid range  [0,16]
             machinecode.push_back(0x5000 | (Vx << 8) | (Vy << 4));
         }
-        else if(isRegister(command[1]) && !isRegister(command[2]))
+        else if(isRegister(command[1]) && !isRegister(command[2])) // check if first arg is register but second is not
         {
             // SE Vx, byte -> 0x3xkk
-            // check if register is in range
+            // safely retrieve register from first arg
             uint8_t Vx;
             if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
-            // NOTE INVARIANT: registers will be in valid range  [0,16]
-            // check if second arg (byte) is 8 bit representable
-            if(!checkconstrange(cmd, command[2])) return false;
-            // NOTE INVARIANT: integer returned by atoi will be in [0,255] -> byte can be represented with 8 bits
-            uint8_t byte = std::atoi(command[2].c_str());
+            // NOTE INVARIANT: registers is in valid range  [0,16]
+            // safely retrieve constant form second arg
+            uint8_t byte;
+            if((byte = getConst(cmd, command[2])) == 0xFF) return false;
+            // NOTE INVARIANT: integer returned by getConst will be in [0,255] -> byte can be represented with 8 bits
             machinecode.push_back(0x3000 | (Vx << 8) | byte);
         }
         else
         {
             // error case, invalid arguments
-            fprintf(stderr, "ERROR: invalid arguments passed to SE (%s)\n", cmd.c_str());
+            fprintf(stderr, "ERROR: invalid arguments passed to SE (passed: %s)\n", cmd.c_str());
             return false;
         }
         break;
     }
     case SNE:
+    {
         // check for number of args
         if(!checknargs(mnemonic, cmd, 2, nargs)) return false;
-        // there exist 2 variants of SE, one that compares a register with constant and one that compares two registers
-        if(isRegister(command[1]) && isRegister(command[2])) // check if second arg is a register
+        // there exist 2 variants of SNE:
+        //// SNE Vx, Vy
+        //// SNE Vx, byte
+        if(isRegister(command[1]) && isRegister(command[2])) // check if both args are registers
         {
             // SNE Vx, Vy -> 0x9xy0
             uint8_t Vx, Vy;
@@ -420,35 +504,86 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
             // NOTE INVARIANT: registers will be in valid range  [0,16]
             machinecode.push_back(0x9000 | (Vx << 8) | (Vy << 4));
         }
-        else if(isRegister(command[1]) && !isRegister(command[2]))
+        else if(isRegister(command[1]) && !isRegister(command[2])) // check if first arg is register and second is not
         {
             // SNE Vx, byte -> 0x4xkk
             // check if register is in range
             uint8_t Vx;
             if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
             // NOTE INVARIANT: registers will be in valid range  [0,16]
-            // check if second arg (byte) is 8 bit representable
-            if(!checkconstrange(cmd, command[2])) return false;
-            // NOTE INVARIANT: integer returned by atoi will be in [0,255] -> byte can be represented with 8 bits
-            uint8_t byte = std::atoi(command[2].c_str());
+            // safely retrieve constant from second arg
+            uint8_t byte;
+            if((byte = getConst(cmd, command[2])) == 0xFF) return false;
+            // NOTE INVARIANT: integer returned by getConst will be in [0,255] -> byte can be represented with 8 bits
             machinecode.push_back(0x4000 | (Vx << 8) | byte);
         }
         else
         {
             // error case, invalid arguments
-            fprintf(stderr, "ERROR: invalid arguments passed to SNE (%s)\n", cmd.c_str());
+            fprintf(stderr, "ERROR: invalid arguments passed to SNE (passed: %s)\n", cmd.c_str());
             return false;
         }
         break;
+    }
     case LD:
         fprintf(stderr, "TODO implement mnemonic \"%s\"\n", mnemonic.c_str());
         return false;
         break;
     case ADD:
-        // TODO go on here ...
-        fprintf(stderr, "TODO implement mnemonic \"%s\"\n", mnemonic.c_str());
-        return false;
+    {
+        // check for number of args
+        if(!checknargs(mnemonic, cmd, 2, nargs)) return false;
+        // there exist 3 variants of ADD:
+        //// ADD Vx, Vy
+        //// ADD Vx, byte
+        //// ADD I, Vx
+        if(isRegister(command[1]) && isRegister(command[2])) // check if both args are registers
+        {
+            // ADD Vx, Vy -> 0x8xy4
+            uint8_t Vx, Vy;
+            if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
+            if((Vy = getRegister(cmd, command[2])) == 0xFF) return false;
+            // NOTE INVARIANT: registers will be in valid range  [0,16]
+            machinecode.push_back(0x8004 | (Vx << 8) | (Vy << 4));
+        }
+        else if(isRegister(command[1]) && !isRegister(command[2])) // check if first arg is register but second not
+        {
+            // ADD Vx, byte -> 0x7xkk
+            // check if register is in range
+            uint8_t Vx;
+            if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
+            // NOTE INVARIANT: registers will be in valid range  [0,16]
+            // safely retrieve constant
+            uint8_t byte;
+            if((byte = getConst(cmd, command[2])) == 0xFF) return false;
+            // NOTE INVARIANT: integer returned by getConst will be in [0,255] -> byte can be represented with 8 bits
+            machinecode.push_back(0x7000 | (Vx << 8) | byte);
+        }
+        else if(!isRegister(command[1]) && isRegister(command[2])) // check if first arg is not register but second is
+        {
+            // ADD I, Vx -> 0xFx1E
+            // safely retrieve I from first arg
+            if(!checkI(cmd, command[1]))
+            {
+                // error case
+                fprintf(stderr, "ERROR: if only second argument of ADD is a register Vx then the first argument must exactly be I (passed: %s).\n", cmd.c_str());
+                return false;
+            }
+            // NOTE INVARIANT: first arg is I
+            // safely retrieve register
+            uint8_t Vx;
+            if((Vx = getRegister(cmd, command[2])) == 0xFF) return false;
+            // NOTE INVARIANT: registers will be in valid range  [0,16]
+            machinecode.push_back(0xF01E | (Vx << 8));
+        }
+        else
+        {
+            // error case, invalid arguments
+            fprintf(stderr, "ERROR: invalid arguments passed to ADD (passed: %s)\n", cmd.c_str());
+            return false;
+        }
         break;
+    }
     case OR:
     {
         // OR Vx, Vy -> 0x8xy1
@@ -463,7 +598,7 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         }
         else
         {
-            fprintf(stderr, "ERROR: OR can only operate on registers, like OR Vx, Vy (%s).\n", cmd.c_str());
+            fprintf(stderr, "ERROR: OR can only operate on registers, like OR Vx, Vy (passed: %s).\n", cmd.c_str());
             return false;
         }
         break;
@@ -482,7 +617,7 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         }
         else
         {
-            fprintf(stderr, "ERROR: AND can only operate on registers, like AND Vx, Vy (%s).\n", cmd.c_str());
+            fprintf(stderr, "ERROR: AND can only operate on registers, like AND Vx, Vy (passed: %s).\n", cmd.c_str());
             return false;
         }
         break;
@@ -501,7 +636,7 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         }
         else
         {
-            fprintf(stderr, "ERROR: XOR can only operate on registers, like XOR Vx, Vy (%s).\n", cmd.c_str());
+            fprintf(stderr, "ERROR: XOR can only operate on registers, like XOR Vx, Vy (passed: %s).\n", cmd.c_str());
             return false;
         }
         break;
@@ -520,7 +655,7 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         }
         else
         {
-            fprintf(stderr, "ERROR: SUB can only operate on registers, like SUB Vx, Vy (%s).\n", cmd.c_str());
+            fprintf(stderr, "ERROR: SUB can only operate on registers, like SUB Vx, Vy (passed: %s).\n", cmd.c_str());
             return false;
         }
         break;
@@ -543,7 +678,7 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         }
         else
         {
-            fprintf(stderr, "ERROR: SUBN can only operate on registers, like SUBN Vx, Vy (%s).\n", cmd.c_str());
+            fprintf(stderr, "ERROR: SUBN can only operate on registers, like SUBN Vx, Vy (passed: %s).\n", cmd.c_str());
             return false;
         }
         break;
