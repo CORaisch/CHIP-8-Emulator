@@ -22,6 +22,5 @@
 ** verify opcode functionality
 ** implement chip8 assembler for debugging purposes
 *** missing functionality:
-**** implement mnemonic assembling
-**** mnemonics implemented and tested so far:
-***** CLS, RET, SYS, JP, CALL, SE, ADD, SNE, OR, AND, XOR, SUB, SUBN
+**** missing mnemonics:
+***** LD
