@@ -232,7 +232,7 @@ bool checkRegRange(std::string& cmd, long reg)
 {
     if(reg < 0 || reg >= 16)
     {
-        fprintf(stderr, "ERROR: Register \"%i\" out of range (passed: %s). Register range from V0-VF.\n", reg, cmd.c_str());
+        fprintf(stderr, "ERROR: Register \"%li\" out of range (passed: %s). Register range from V0-VF.\n", reg, cmd.c_str());
         return false;
     }
     return true;
@@ -860,7 +860,7 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         break;
     }
     default:
-        fprintf(stderr, "ERROR: undefined mnemonic \"%s\" (passed: %s)\n", mnemonic, cmd.c_str());
+        fprintf(stderr, "ERROR: undefined mnemonic \"%s\" (passed: %s)\n", mnemonic.c_str(), cmd.c_str());
         return false;
     }
 
