@@ -11,21 +11,21 @@
 /* function prototypes */
 bool parseArgs(int argc, char** argv);
 void printUsage();
-bool assemble(std::deque<std::string>& command, std::string& cmd);
-bool isRegister(std::string& arg);
-bool markerExists(std::string& cmd, std::string& marker);
-bool checkNumArgs(std::string& mnemonic, std::string& cmd, int n_required, int n_given);
-bool checkAddrRange(std::string& cmd, uint16_t addr);
-bool checkRegRange(std::string& cmd, int reg);
-bool checkRegRange(std::string& cmd, long reg);
-bool checkConstRange(std::string& cmd, long lconst);
-bool checkConstRange(std::string& cmd, int iconst);
-bool checkNibbleRange(std::string& cmd, long lnibble);
-bool checkNibbleRange(std::string& cmd, int inibble);
-bool checkI(std::string& cmd, std::string& arg);
-uint8_t getRegister(std::string& cmd, std::string& reg);
-bool getConst(std::string& cmd, std::string& sconst, uint8_t& ret);
-uint8_t getNibble(std::string& cmd, std::string& snibble);
+bool assemble(const std::deque<std::string>& command, const std::string& cmd);
+bool isRegister(const std::string& arg);
+bool markerExists(const std::string& cmd, const std::string& marker);
+bool checkNumArgs(const std::string& mnemonic, const std::string& cmd, int n_required, int n_given);
+bool checkAddrRange(const std::string& cmd, const uint16_t addr);
+bool checkRegRange(const std::string& cmd, const int reg);
+bool checkRegRange(const std::string& cmd, const long reg);
+bool checkConstRange(const std::string& cmd, const long lconst);
+bool checkConstRange(const std::string& cmd, const int iconst);
+bool checkNibbleRange(const std::string& cmd, const long lnibble);
+bool checkNibbleRange(const std::string& cmd, const int inibble);
+bool checkI(const std::string& cmd, const std::string& arg);
+bool getRegister(const std::string& cmd, const std::string& reg, uint8_t& ret);
+bool getConst(const std::string& cmd, const std::string& sconst, uint8_t& ret);
+bool getNibble(const std::string& cmd, const std::string& snibble, uint8_t& ret);
 
 /* globals */
 std::string strFilename = "../code/TEST.ch8";
@@ -189,7 +189,7 @@ int main(int argc, char** argv)
     return EXIT_SUCCESS;
 }
 
-bool isRegister(std::string& arg)
+bool isRegister(const std::string& arg)
 {
     if((arg.front() == 'V') || (arg.front() == 'v'))
         return true;
@@ -197,7 +197,7 @@ bool isRegister(std::string& arg)
         return false;
 }
 
-bool markerExists(std::string& cmd, std::string& marker)
+bool markerExists(const std::string& cmd, const std::string& marker)
 {
     // check if marker has an entry in markers map
     if(markers.find(marker) == markers.end())
@@ -208,7 +208,7 @@ bool markerExists(std::string& cmd, std::string& marker)
     return true;
 }
 
-bool checkNumArgs(std::string& mnemonic, std::string& cmd, int n_required, int n_given)
+bool checkNumArgs(const std::string& mnemonic, const std::string& cmd, const int n_required, const int n_given)
 {
     if(n_given != n_required)
     {
@@ -218,7 +218,7 @@ bool checkNumArgs(std::string& mnemonic, std::string& cmd, int n_required, int n
     return true;
 }
 
-bool checkRegRange(std::string& cmd, int reg)
+bool checkRegRange(const std::string& cmd, const int reg)
 {
     if(reg < 0 || reg >= 16)
     {
@@ -228,7 +228,7 @@ bool checkRegRange(std::string& cmd, int reg)
     return true;
 }
 
-bool checkRegRange(std::string& cmd, long reg)
+bool checkRegRange(const std::string& cmd, const long reg)
 {
     if(reg < 0 || reg >= 16)
     {
@@ -238,7 +238,7 @@ bool checkRegRange(std::string& cmd, long reg)
     return true;
 }
 
-bool checkAddrRange(std::string& cmd, uint16_t addr)
+bool checkAddrRange(const std::string& cmd, const uint16_t addr)
 {
     // check if most significant nibble is set
     if(0xF000 & addr)
@@ -250,7 +250,7 @@ bool checkAddrRange(std::string& cmd, uint16_t addr)
     return true;
 }
 
-bool checkConstRange(std::string& cmd, long lconst)
+bool checkConstRange(const std::string& cmd, const long lconst)
 {
     // CHIP-8 only supports 8 bit constants so check if given number is representable by 8 bits
     if(lconst >> 8) // check if only least significant byte is set
@@ -261,7 +261,7 @@ bool checkConstRange(std::string& cmd, long lconst)
     return true;
 }
 
-bool checkConstRange(std::string& cmd, int iconst)
+bool checkConstRange(const std::string& cmd, const int iconst)
 {
     // CHIP-8 only supports 8 bit constants so check if given number is representable by 8 bits
     if(iconst >> 8) // check if only least significant byte is set
@@ -272,7 +272,7 @@ bool checkConstRange(std::string& cmd, int iconst)
     return true;
 }
 
-bool checkNibbleRange(std::string& cmd, long lnibble)
+bool checkNibbleRange(const std::string& cmd, const long lnibble)
 {
     if(lnibble >> 4) // check if only least significant nibble is set
     {
@@ -282,7 +282,7 @@ bool checkNibbleRange(std::string& cmd, long lnibble)
     return true;
 }
 
-bool checkNibbleRange(std::string& cmd, int inibble)
+bool checkNibbleRange(const std::string& cmd, const int inibble)
 {
     if(inibble >> 4) // check if only least significant nibble is set
     {
@@ -292,10 +292,10 @@ bool checkNibbleRange(std::string& cmd, int inibble)
     return true;
 }
 
-uint8_t getRegister(std::string& cmd, std::string& reg)
+bool getRegister(const std::string& cmd, const std::string& reg, uint8_t& ret)
 {
     // extract substring with register number
-    std::string regno = reg.substr(1, reg.size()-1);
+    const std::string regno = reg.substr(1, reg.size()-1);
     // extract register number from string
     // string can be {V,v}0-{V,v}16 or {V,v}0-{V,v}F
     // check if regno is decimal coded
@@ -303,32 +303,34 @@ uint8_t getRegister(std::string& cmd, std::string& reg)
     {
         int ireg = std::atoi(regno.c_str());
         // check if register is in range
-        if(!checkRegRange(cmd, ireg)) return 0xFF;
+        if(!checkRegRange(cmd, ireg)) return false;
         // NOTE INVARIANT: register number is in valid range [0,16] which can be implicitly casted to uint8_t since it is 8 bit representable
-        return ireg;
+        ret = ireg;
+        return true;
     }
     // check if regno is hexadecimal coded
     else if(regno.c_str()[strspn(regno.c_str(), "AaBbCcDdEeFf0123456789")] == 0)
     {
         long lreg = std::strtol(regno.c_str(), NULL, 16);
         // check if register is in range
-        if(!checkRegRange(cmd, lreg)) return 0xFF;
+        if(!checkRegRange(cmd, lreg)) return false;
         // NOTE INVARIANT: register number is in valid range [0,16] which can be implicitly casted to uint8_t since it is 8 bit representable
-        return lreg;
+        ret = lreg;
+        return true;
     }
     else
     {
         // error case
-        fprintf(stderr, "ERROR: invalid register given \"%s\". Registers numbers need to be defined wether coded decimal or hexadecimal and with a leading 'v' or 'V', like 'V12' or 'VC'.\n", reg.c_str());
-        return 0xFF;
+        fprintf(stderr, "ERROR: invalid register given \"%s\". Registers numbers need to be defined either coded decimal or hexadecimal and need to be marked by a leading 'v' or 'V', like 'V12' or 'VC'.\n", reg.c_str());
+        return false;
     }
 }
 
-bool getConst(std::string& cmd, std::string& sconst, uint8_t& ret)
+bool getConst(const std::string& cmd, const std::string& sconst, uint8_t& ret)
 {
     // NOTE constants in CHIP-8 are always coded in 8 bit
     bool result = false;
-    // const can be given wether coded decimal or hexadecimal
+    // const can be given either coded decimal or hexadecimal
     // if const is coded hexadecimal it must be given with prefix 0x
     if(!sconst.substr(0, 2).compare("0x"))
     {
@@ -364,16 +366,15 @@ bool getConst(std::string& cmd, std::string& sconst, uint8_t& ret)
     }
     else
     {
-        // error case: const is wether coded hexadecimal nor decimal
+        // error case: const is either coded hexadecimal nor decimal
         fprintf(stderr, "ERROR: constants are only allowed to be coded decimal or hexadecimal. hexadecimal coded constants need to be prefixed by \"0x\" (passed: %s).\n", cmd.c_str());
     }
     return result;
 }
 
-uint8_t getNibble(std::string& cmd, std::string& snibble)
+bool getNibble(const std::string& cmd, const std::string& snibble, uint8_t& ret)
 {
-    uint8_t ret = 0xFF;
-    // nibble can be given wether coded decimal or hexadecimal
+    // nibble can be given either coded decimal or hexadecimal
     // if nibble is coded hexadecimal it must be given with prefix 0x
     if(!snibble.substr(0, 2).compare("0x"))
     {
@@ -389,6 +390,7 @@ uint8_t getNibble(std::string& cmd, std::string& snibble)
             {
                 // NOTE INVARIANT: const is 4 bit representable
                 ret = lnibble;
+                return true;
             }
         }
     }
@@ -403,17 +405,18 @@ uint8_t getNibble(std::string& cmd, std::string& snibble)
         {
             // NOTE INVARIANT: const is 4 bit representable
             ret = inibble;
+            return true;
         }
     }
     else
     {
-        // error case: nibble is wether coded hexadecimal nor decimal
+        // error case: nibble is either coded hexadecimal nor decimal
         fprintf(stderr, "ERROR: nibbles are only allowed to be coded decimal or hexadecimal. hexadecimal coded nibbles need to be prefixed by \"0x\" (passed: %s).\n", cmd.c_str());
+        return true;
     }
-    return ret;
 }
 
-bool checkI(std::string& cmd, std::string& arg)
+bool checkI(const std::string& cmd, const std::string& arg)
 {
     // check if arg only consits of letter 'I'
     if(arg.compare("I"))
@@ -424,7 +427,7 @@ bool checkI(std::string& cmd, std::string& arg)
     return true;
 }
 
-bool assemble(std::deque<std::string>& command, std::string& cmd)
+bool assemble(const std::deque<std::string>& command, const std::string& cmd)
 {
     // get mnemonic
     std::string mnemonic = command.front();
@@ -482,7 +485,8 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
             if(isRegister(command[1]))
             {
                 // check if register is V0
-                regno = getRegister(cmd, command[1]);
+                uint8_t regno;
+                if(!getRegister(cmd, command[1], regno)) return false;
                 if(regno != 0)
                 {
                     fprintf(stderr, "ERROR: when JP is passed with 2 arguments, the first one needs to be exactly register V0 (passed: %s).\n", cmd.c_str());
@@ -530,8 +534,8 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         {
             // SE Vx, Vy -> 0x5xy0
             uint8_t Vx, Vy;
-            if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
-            if((Vy = getRegister(cmd, command[2])) == 0xFF) return false;
+            if(!getRegister(cmd, command[1], Vx)) return false;
+            if(!getRegister(cmd, command[2], Vy)) return false;
             // NOTE INVARIANT: registers will be in valid range  [0,16]
             machinecode.push_back(0x5000 | (Vx << 8) | (Vy << 4));
         }
@@ -540,7 +544,7 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
             // SE Vx, byte -> 0x3xkk
             // safely retrieve register from first arg
             uint8_t Vx;
-            if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
+            if(!getRegister(cmd, command[1], Vx)) return false;
             // NOTE INVARIANT: registers is in valid range  [0,16]
             // safely retrieve constant form second arg
             uint8_t byte;
@@ -567,8 +571,8 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         {
             // SNE Vx, Vy -> 0x9xy0
             uint8_t Vx, Vy;
-            if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
-            if((Vy = getRegister(cmd, command[2])) == 0xFF) return false;
+            if(!getRegister(cmd, command[1], Vx)) return false;
+            if(!getRegister(cmd, command[2], Vy)) return false;
             // NOTE INVARIANT: registers will be in valid range  [0,16]
             machinecode.push_back(0x9000 | (Vx << 8) | (Vy << 4));
         }
@@ -577,7 +581,7 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
             // SNE Vx, byte -> 0x4xkk
             // check if register is in range
             uint8_t Vx;
-            if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
+            if(!getRegister(cmd, command[1], Vx)) return false;
             // NOTE INVARIANT: registers will be in valid range  [0,16]
             // safely retrieve constant from second arg
             uint8_t byte;
@@ -612,8 +616,8 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         {
             // ADD Vx, Vy -> 0x8xy4
             uint8_t Vx, Vy;
-            if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
-            if((Vy = getRegister(cmd, command[2])) == 0xFF) return false;
+            if(!getRegister(cmd, command[1], Vx)) return false;
+            if(!getRegister(cmd, command[2], Vy)) return false;
             // NOTE INVARIANT: registers will be in valid range [0,16]
             machinecode.push_back(0x8004 | (Vx << 8) | (Vy << 4));
         }
@@ -622,7 +626,7 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
             // ADD Vx, byte -> 0x7xkk
             // check if register is in range
             uint8_t Vx;
-            if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
+            if(!getRegister(cmd, command[1], Vx)) return false;
             // NOTE INVARIANT: registers will be in valid range [0,16]
             // safely retrieve constant
             uint8_t byte;
@@ -643,7 +647,7 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
             // NOTE INVARIANT: first arg is I
             // safely retrieve register
             uint8_t Vx;
-            if((Vx = getRegister(cmd, command[2])) == 0xFF) return false;
+            if(!getRegister(cmd, command[2], Vx)) return false;
             // NOTE INVARIANT: registers will be in valid range [0,16]
             machinecode.push_back(0xF01E | (Vx << 8));
         }
@@ -664,8 +668,8 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         if(isRegister(command[1]) && isRegister(command[2]))
         {
             uint8_t Vx, Vy;
-            if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
-            if((Vy = getRegister(cmd, command[2])) == 0xFF) return false;
+            if(!getRegister(cmd, command[1], Vx)) return false;
+            if(!getRegister(cmd, command[2], Vy)) return false;
             // NOTE INVARIANT: registers will be in valid range [0,16]
             machinecode.push_back(0x8001 | (Vx << 8) | (Vy << 4));
         }
@@ -685,8 +689,8 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         if(isRegister(command[1]) && isRegister(command[2]))
         {
             uint8_t Vx, Vy;
-            if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
-            if((Vy = getRegister(cmd, command[2])) == 0xFF) return false;
+            if(!getRegister(cmd, command[1], Vx)) return false;
+            if(!getRegister(cmd, command[2], Vy)) return false;
             // NOTE INVARIANT: registers will be in valid range [0,16]
             machinecode.push_back(0x8002 | (Vx << 8) | (Vy << 4));
         }
@@ -706,8 +710,8 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         if(isRegister(command[1]) && isRegister(command[2]))
         {
             uint8_t Vx, Vy;
-            if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
-            if((Vy = getRegister(cmd, command[2])) == 0xFF) return false;
+            if(!getRegister(cmd, command[1], Vx)) return false;
+            if(!getRegister(cmd, command[2], Vy)) return false;
             // NOTE INVARIANT: registers will be in valid range [0,16]
             machinecode.push_back(0x8003 | (Vx << 8) | (Vy << 4));
         }
@@ -727,8 +731,8 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         if(isRegister(command[1]) && isRegister(command[2]))
         {
             uint8_t Vx, Vy;
-            if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
-            if((Vy = getRegister(cmd, command[2])) == 0xFF) return false;
+            if(!getRegister(cmd, command[1], Vx)) return false;
+            if(!getRegister(cmd, command[2], Vy)) return false;
             // NOTE INVARIANT: registers will be in valid range [0,16]
             machinecode.push_back(0x8005 | (Vx << 8) | (Vy << 4));
         }
@@ -746,7 +750,7 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         if(!checkNumArgs(mnemonic, cmd, 1, nargs)) return false;
         // safely retrieve register from first argument
         uint8_t Vx;
-        if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
+        if(!getRegister(cmd, command[1], Vx)) return false;
         // NOTE INVARIANT: registers will be in valid range [0,16]
         machinecode.push_back(0x8006 | (Vx << 8)); // NOTE assembler will set register y=0 since it is not used at this operation
         break;
@@ -760,8 +764,8 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         if(isRegister(command[1]) && isRegister(command[2]))
         {
             uint8_t Vx, Vy;
-            if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
-            if((Vy = getRegister(cmd, command[2])) == 0xFF) return false;
+            if(!getRegister(cmd, command[1], Vx)) return false;
+            if(!getRegister(cmd, command[2], Vy)) return false;
             // NOTE INVARIANT: registers will be in valid range [0,16]
             machinecode.push_back(0x8007 | (Vx << 8) | (Vy << 4));
         }
@@ -779,7 +783,7 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         if(!checkNumArgs(mnemonic, cmd, 1, nargs)) return false;
         // safely retrieve register from first argument
         uint8_t Vx;
-        if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
+        if(!getRegister(cmd, command[1], Vx)) return false;
         // NOTE INVARIANT: registers will be in valid range [0,16]
         machinecode.push_back(0x800E | (Vx << 8)); // NOTE assembler will set register y=0 since it is not used at this operation
         break;
@@ -794,7 +798,7 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         {
             // check if register is in range
             uint8_t Vx;
-            if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
+            if(!getRegister(cmd, command[1], Vx)) return false;
             // NOTE INVARIANT: registers will be in valid range [0,16]
             // safely retrieve constant
             uint8_t byte;
@@ -819,12 +823,12 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         {
             // safely retrieve register from first two arguments
             uint8_t Vx, Vy;
-            if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
-            if((Vy = getRegister(cmd, command[2])) == 0xFF) return false;
+            if(!getRegister(cmd, command[1], Vx)) return false;
+            if(!getRegister(cmd, command[2], Vy)) return false;
             // NOTE INVARIANT: registers will be in valid range [0,16]
             // safely retrieve nibble from third argument
             uint8_t nibble;
-            if((nibble = getNibble(cmd, command[3])) == 0xFF) return false;
+            if(!getNibble(cmd, command[3], nibble)) return false;
             // NOTE INVARIANT: nibble is 4 bit representable -> most significant nible of uint8 will be unset
             machinecode.push_back(0xD000 | (Vx << 8) | (Vy << 4) | nibble);
         }
@@ -842,7 +846,7 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         if(!checkNumArgs(mnemonic, cmd, 1, nargs)) return false;
         // safely retrieve register from first argument
         uint8_t Vx;
-        if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
+        if(!getRegister(cmd, command[1], Vx)) return false;
         // NOTE INVARIANT: registers will be in valid range [0,16]
         machinecode.push_back(0xE09E | (Vx << 8));
         break;
@@ -854,7 +858,7 @@ bool assemble(std::deque<std::string>& command, std::string& cmd)
         if(!checkNumArgs(mnemonic, cmd, 1, nargs)) return false;
         // safely retrieve register from first argument
         uint8_t Vx;
-        if((Vx = getRegister(cmd, command[1])) == 0xFF) return false;
+        if(!getRegister(cmd, command[1], Vx)) return false;
         // NOTE INVARIANT: registers will be in valid range [0,16]
         machinecode.push_back(0xE0A1 | (Vx << 8));
         break;
