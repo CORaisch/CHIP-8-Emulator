@@ -116,6 +116,9 @@ int main(int argc, char** argv)
         // NOTE INVARIANT: when ending up here strCode[p] == '\n'
     }
 
+    // TODO replace changes according strCode.size()-1, etc. with check
+    //// if tokensLine is not empty AND if tokensLine != tokens.back() then add tokensLine to tokens
+
     // beg DEBUG
     printf("#### PARSED ASSEMBLY ####\n");
     for(size_t i=0; i<tokens.size(); ++i)
