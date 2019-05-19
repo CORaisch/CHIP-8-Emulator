@@ -25,5 +25,5 @@
 **** missing mnemonics:
 ***** LD
 *** parser still doesn't work if the file ends on more then 1 whitespaces 
-**** remove exceptions added last time and add check after loop, if 'tokensLine' is not empty and if 'tokensLine' is unequal to 'tokens' -> then add 'tokensLine' to 'tokens'
+**** remove exceptions added last time and add check after loop, if 'tokensLine' is not empty and if 'tokensLine' is unequal to 'tokens.back()' -> then add 'tokensLine' to 'tokens'
 *** add unit tests s.t. each command is tested once in all possible addressing ways
