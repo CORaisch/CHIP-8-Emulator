@@ -94,19 +94,18 @@ int main(int argc, char** argv)
                 tokensLine.emplace_back(token);
             }
             // if {newline, comment, EOF} follows last token then make new line token-vector
-            if(p == strCode.size() || p == strCode.size()-1 || strCode[p] == sNewline || strCode[p] == sComment)
+            if(p == strCode.size() || strCode[p] == sNewline || strCode[p] == sComment)
             {
                 // do not save line tokens if:
                 //// last token was a marker (we want to treat markers as if they where defined at the same line where they refer to) OR
-                //// current symbol is EOF (if file ends on last written character) OR
-                //// next symbol is EOF (if file ends on {newline, whitespace})
-                if((strCode[p-1] != sMarker) || (p == strCode.size()) || (p == strCode.size()-1))
+                //// current symbol is EOF (if file ends on last written character)
+                if((strCode[p-1] != sMarker) || (p == strCode.size()))
                 {
                     tokens.emplace_back(tokensLine);
                     tokensLine.clear();
                 }
             }
-            // if token ended on {whitespace, comma} simply skip it
+            // if token ended on {whitespace, comma, tab} simply skip it
             if(strCode[p] == sComma || strCode[p] == sWhitespace || strCode[p] == sIndent)
                 p++;
         }
@@ -116,8 +115,9 @@ int main(int argc, char** argv)
         // NOTE INVARIANT: when ending up here strCode[p] == '\n'
     }
 
-    // TODO replace changes according strCode.size()-1, etc. with check
-    //// if tokensLine is not empty AND if tokensLine != tokens.back() then add tokensLine to tokens
+    // if last line in file ends on {whitespace, tab, comma} we need to manually store last line of tokens
+    if(!tokensLine.empty())
+        tokens.emplace_back(tokensLine);
 
     // beg DEBUG
     printf("#### PARSED ASSEMBLY ####\n");
@@ -424,7 +424,7 @@ bool checkI(const std::string& cmd, const std::string& arg)
     // check if arg only consits of letter 'I'
     if(arg.compare("I"))
     {
-        fprintf(stderr, "ERROR: required I as an argument but given %s (passed: %s).\n", arg.c_str(), cmd.c_str());
+        // fprintf(stderr, "ERROR: required I as an argument but given %s (passed: %s).\n", arg.c_str(), cmd.c_str());
         return false;
     }
     return true;
@@ -602,9 +602,93 @@ bool assemble(const std::deque<std::string>& command, const std::string& cmd)
     }
     case LD:
     {
-        // TODO go on here ...
-        fprintf(stderr, "TODO implement mnemonic \"%s\"\n", mnemonic.c_str());
-        return false;
+        // all LD version have 2 arguments
+        if(!checkNumArgs(mnemonic, cmd, 2, nargs)) return false;
+        // check for I as first arg
+        if(checkI(cmd, command[1]))
+        {
+            // LD I, addr -> 0xAnnn
+            if(!markerExists(cmd, command[2])) return false;
+            // NOTE INVARIANT: marker is valid and its most significant nibble is 0
+            machinecode.push_back(0xA000 | markers[command[2]]);
+            break;
+        }
+        // check for Vx as first arg
+        else if(isRegister(command[1]))
+        {
+            // safely retrive register from first argument
+            uint8_t Vx, byte;
+            if(!getRegister(cmd, command[1], Vx)) return false;
+            // check for second argument
+            if(isRegister(command[2]))
+            {
+                // LD Vx, Vy -> 0x8xy0
+                uint8_t Vy;
+                if(!getRegister(cmd, command[2], Vy)) return false;
+                // NOTE INVARIANT: registers will be in valid range [0,16]
+                machinecode.push_back(0x8000 | (Vx << 8) | (Vy << 4));
+            }
+            else if(!command[2].compare("DT") || !command[2].compare("dt"))
+            {
+                // LD Vx, DT -> 0xFx07
+                machinecode.push_back(0xF007 | (Vx << 8));
+            }
+            else if(!command[2].compare("K") || !command[2].compare("k"))
+            {
+                // LD Vx, K -> 0xFx0A
+                machinecode.push_back(0xF00A | (Vx << 8));
+            }
+            else if(!command[2].compare("[I]") || !command[2].compare("[i]"))
+            {
+                // LD Vx, [I] -> 0xFx65
+                machinecode.push_back(0xF065 | (Vx << 8));
+            }
+            else if(getConst(cmd, command[2], byte))
+            {
+                // LD Vx, byte -> 0x6xkk
+                // NOTE INVARIANT: integer returned by getConst will be in [0,255] -> byte can be represented with 8 bits
+                machinecode.push_back(0x6000 | (Vx << 8) | byte);
+            }
+        }
+        // check for Vx as second arg
+        else if(isRegister(command[2]))
+        {
+            // safely retrive register from second argument
+            uint8_t Vx;
+            if(!getRegister(cmd, command[2], Vx)) return false;
+            // check for first argument
+            if(!command[1].compare("DT") || !command[1].compare("dt"))
+            {
+                // LD DT, Vx -> 0xFx15
+                machinecode.push_back(0xF015 | (Vx << 8));
+            }
+            else if(!command[1].compare("ST") || !command[1].compare("st"))
+            {
+                // LD ST, Vx -> 0xFx18
+                machinecode.push_back(0xF018 | (Vx << 8));
+            }
+            else if(!command[1].compare("F") || !command[1].compare("f"))
+            {
+                // LD F, Vx -> 0xFx29
+                machinecode.push_back(0xF029 | (Vx << 8));
+            }
+            else if(!command[1].compare("B") || !command[1].compare("b"))
+            {
+                // LD B, Vx -> 0xFx33
+                machinecode.push_back(0xF033 | (Vx << 8));
+            }
+            else if(!command[1].compare("[I]") || !command[1].compare("[i]"))
+            {
+                // LD [I], Vx -> 0xFx55
+                machinecode.push_back(0xF055 | (Vx << 8));
+            }
+        }
+        else
+        {
+            // else LD used with invalid arguments
+            fprintf(stderr, "ERROR: invalid arguments passed to LD (passed: %s)\n", cmd.c_str());
+            return false;
+        }
         break;
     }
     case ADD:

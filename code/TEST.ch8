@@ -12,4 +12,11 @@ loop: # this is a marker which is treated as jump location
 
 # endless loop at the end of the programme
 end:
-	JP end
+	JP end 
+
+## GT MACHINE CODE
+# 0x200: 6000
+# 0x201: 7001
+# 0x202: 300A
+# 0x203: 1201
+# 0x204: 1204
