@@ -7,6 +7,7 @@
 #include <vector>
 #include <map>
 #include <deque>
+#include <algorithm>
 
 /* function prototypes */
 bool parseArgs(int argc, char** argv);
@@ -28,7 +29,9 @@ bool getConst(const std::string& cmd, const std::string& sconst, uint8_t& ret);
 bool getNibble(const std::string& cmd, const std::string& snibble, uint8_t& ret);
 
 /* globals */
-std::string strFilename = "../code/TEST.ch8";
+bool bVerbose = false;
+std::string str_file_in = "../code/TEST.ch8";
+std::string str_file_out;
 enum mnemonics {CLS, RET, SYS, JP, CALL, SE, SNE, LD, ADD, OR, AND, XOR, SUB, SHR, SUBN, SHL, RND, DRW, SKP, SKNP};
 std::map<std::string, int> map_mnemonic;
 std::map<std::string, uint16_t> markers;
@@ -63,15 +66,16 @@ int main(int argc, char** argv)
     map_mnemonic["SKNP"] = SKNP; map_mnemonic["sknp"] = SKNP;
 
     // open file stream
-    printf("assemble file \"%s\"\n", strFilename.c_str());
+    printf("assemble file \"%s\"\n", str_file_in.c_str());
     std::string strCode;
-    std::ifstream stream(strFilename.c_str());
+    std::ifstream istream(str_file_in.c_str());
     // reserve number of chars needed
-    stream.seekg(0, std::ios::end);
-    strCode.reserve(stream.tellg());
-    stream.seekg(0, std::ios::beg);
+    istream.seekg(0, std::ios::end);
+    strCode.reserve(istream.tellg());
+    istream.seekg(0, std::ios::beg);
     // load chars of file into string
-    strCode.assign(std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>());
+    strCode.assign(std::istreambuf_iterator<char>(istream), std::istreambuf_iterator<char>());
+    istream.close();
 
     // iterate file char-wise and cut whitespace, newlines and comments - any different symbol is treated as token
     char sWhitespace = ' '; char sIndent = '\t'; char sNewline = '\n'; char sComment = '#'; char sComma = ','; char sMarker = ':';
@@ -119,16 +123,18 @@ int main(int argc, char** argv)
     if(!tokensLine.empty())
         tokens.emplace_back(tokensLine);
 
-    // beg DEBUG
-    printf("#### PARSED ASSEMBLY ####\n");
-    for(size_t i=0; i<tokens.size(); ++i)
+    // if verbose flag is set, print parsed output
+    if(bVerbose)
     {
-        printf("%li: ", i);
-        for(auto t : tokens[i])
-            printf("%s ", t.c_str());
-        printf("\n");
+        printf("#### PARSED ASSEMBLY ####\n");
+        for(size_t i=0; i<tokens.size(); ++i)
+        {
+            printf("%li: ", i);
+            for(auto t : tokens[i])
+                printf("%s ", t.c_str());
+            printf("\n");
+        }
     }
-    // end DEBUG
 
     /* assembly loop */
     // reserve memory for machinecode
@@ -154,18 +160,19 @@ int main(int argc, char** argv)
             tokens[i].pop_front();
         }
     }
-    printf("\n");
 
-    // beg DEBUG
-    printf("#### MARKERS ####\n");
-    std::map<std::string, uint16_t>::iterator it;
-    for(it=markers.begin(); it!=markers.end(); ++it)
-        printf("marker: %s -> address: 0x%03x\n", (it->first).c_str(), it->second);
-    printf("\n");
-    // end DEBUG
+    // if verbose flag is set, print address markers
+    if(bVerbose)
+    {
+        printf("\n#### MARKERS ####\n");
+        std::map<std::string, uint16_t>::iterator it;
+        for(it=markers.begin(); it!=markers.end(); ++it)
+            printf("marker: %s -> address: 0x%03x\n", (it->first).c_str(), it->second);
+        printf("\n");
+    }
 
     // 2nd iteration: assemble code
-    printf("#### ASSEMBLY OUTPUT ####\n");
+    printf("#### ASSEMBLING .... ####\n");
     for(size_t i=0; i<tokens.size(); ++i)
     {
         // compose complete command string
@@ -181,13 +188,23 @@ int main(int argc, char** argv)
             break;
         }
     }
-    printf("\n");
+    printf("#### ASSEMBLING DONE ####\n");
 
-    // beg DEBUG
-    printf("#### MACHINE CODE ####\n");
-    for(int i=0; i<machinecode.size(); ++i)
-        printf("0x%03x: %04x\n", i+0x200, machinecode[i]);
-    // end DEBUG
+    // if verbose flag is set, print assembled machine code
+    if(bVerbose)
+    {
+        printf("\n#### MACHINE CODE ####\n");
+        for(size_t i=0; i<machinecode.size(); ++i)
+            printf("0x%03lx: %04x\n", i+0x200, machinecode[i]);
+        printf("\n");
+    }
+
+    // save machine code to disk
+    std::ofstream ostream(str_file_out.c_str(), std::ofstream::out | std::ofstream::binary);
+    for(size_t i=0; i<machinecode.size(); ++i)
+        ostream << std::hex << machinecode[i] << std::endl;
+    ostream.close();
+    printf("output written to \"%s\"\n", str_file_out.c_str());
 
     return EXIT_SUCCESS;
 }
@@ -961,9 +978,8 @@ bool assemble(const std::deque<std::string>& command, const std::string& cmd)
 
 bool parseArgs(int argc, char** argv)
 {
-    // if no arg is passed use default config
-    if(argc == 1)
-        return true;
+    // local helpers
+    bool bOutputSet = false;
 
     // parse commandline arguments
     for (int i = 1; i < argc; ++i)
@@ -974,17 +990,47 @@ bool parseArgs(int argc, char** argv)
             printUsage();
             return false;
         }
-        // check for rom
+        // check for input filename
         if(!std::strcmp(argv[i], "-i") || !std::strcmp(argv[i], "--input"))
         {
             i++;
             if(i < argc)
             {
-                strFilename = argv[i];
+                str_file_in = argv[i];
             }
             else
                 return false;
         }
+        // check for output filename
+        if(!std::strcmp(argv[i], "-o") || !std::strcmp(argv[i], "--output"))
+        {
+            i++;
+            if(i < argc)
+            {
+                bOutputSet = true;
+                str_file_out = argv[i];
+            }
+            else
+                return false;
+        }
+        // check for verbose flag
+        if(!std::strcmp(argv[i], "-v") || !std::strcmp(argv[i], "--verbose"))
+        {
+            bVerbose = true;
+        }
+    }
+
+    // if no output filename was given cut ending of input file and use input capitalized filename for output
+    if(!bOutputSet)
+    {
+        // cut path from filename
+        str_file_out = str_file_in.substr(str_file_in.find_last_of("/")+1);
+        // cut file extension of input filename if exists
+        size_t pos_ext;
+        if((pos_ext = str_file_out.find_last_of(".")) != std::string::npos)
+            str_file_out = str_file_out.substr(0, pos_ext);
+        // set capitalized cut input filename as output filename
+        std::transform(str_file_out.begin(), str_file_out.end(), str_file_out.begin(), ::toupper);
     }
 
     return true;
@@ -996,6 +1042,7 @@ void printUsage()
     printf( "By default chip8disassembly starts disassembling the MAZE program, which is good for debugging.\n");
     printf( "\nOptions:\n");
     printf( "-h --help                                print usage\n");
-    printf( "-i --input PATH/TO/ROM                   set rom to disassemble\n");
-    printf( "-c --cols                               set columns of memory map\n");
+    printf( "-i --input PATH/TO/ROM                   set input filename\n");
+    printf( "-o --output PATH/TO/ROM                  set output filename\n");
+    printf( "-v --verbose                             activate for many outputs\n");
 }
