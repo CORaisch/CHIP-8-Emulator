@@ -151,7 +151,7 @@ int main(int argc, char** argv)
             strCommand.pop_back(); // pop last space -> cosmetics
             // extract marker
             tokens[i].front().pop_back();
-            uint16_t addr = 0x200 + uint16_t(i);
+            uint16_t addr = 0x200 + uint16_t(i*2); // NOTE *2 since each command is 2 byte but PC is counting per byte (e.g. 2nd command will be at addr 4)
             // only add marker if address is valid
             if(!checkAddrRange(strCommand, addr)) return false;
             // insert marker
