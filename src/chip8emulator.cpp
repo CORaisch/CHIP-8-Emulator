@@ -8,6 +8,8 @@ void printUsage();
 /* globals */
 std::string strFilename = "../roms/FISHIE";
 int nMemMapCols = 16;
+bool bStepMode = false;
+bool bVerbose = false;
 
 int main(int argc, char** argv)
 {
@@ -27,28 +29,41 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
 
-    // print memory map
-    CHIP_8.print_complete_memory_map(nMemMapCols);
+    if(bVerbose)
+    {
+        // print memory map
+        CHIP_8.print_complete_memory_map(nMemMapCols);
 
-    // print ROM binary
-    CHIP_8.print_ROM(lenROM, nMemMapCols);
+        // print ROM binary
+        CHIP_8.print_ROM(lenROM, nMemMapCols);
+    }
 
     // disassemble rom code
-    printf("######## START EMULATION ########\n");
+    printf("######## RUN EMULATION ########\n");
     while(CHIP_8.is_running())
     {
         // fetch command
         int PC = CHIP_8.fetch_command();
+
+        if(bVerbose)
+        {
+            printf("\033[1;44m next command \033[0m ");
+            CHIP_8.disassemble_command();
+        }
+
         // execute command
         if(CHIP_8.exec_command() < 0)
         {
             fprintf(stderr, "ERROR: some command couldn't be executed. Emulation will be stopped.\n");
             break;
         }
-        // DEBUG print memory map
-        printf("Executing ROM address 0x%03x\n", PC);
-        // CHIP_8.print_memory(nMemMapCols);
-        CHIP_8.print_registers();
+
+        if(bVerbose)
+        {
+            // CHIP_8.print_memory(nMemMapCols);
+            CHIP_8.print_registers();
+            if(bStepMode) getchar();
+        }
     }
 
     return EXIT_SUCCESS;
@@ -90,6 +105,16 @@ bool parseArgs(int argc, char** argv)
             }
             else
                 return false;
+        }
+        // check for step-by-step execution
+        if(!std::strcmp(argv[i], "-s") || !std::strcmp(argv[i], "--step"))
+        {
+            bStepMode = true;
+        }
+        // check for verbose flag
+        if(!std::strcmp(argv[i], "-v") || !std::strcmp(argv[i], "--verbose"))
+        {
+            bVerbose = true;
         }
     }
 
