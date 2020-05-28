@@ -574,22 +574,8 @@ void chip8::disassemble_command()
 
 void chip8::print_complete_memory_map(int _cols)
 {
-    printf("######## MEMORY MAP ########\n");
-    int rows = 4096/_cols;
-    for(int iy = 0; iy < rows; ++iy)
-    {
-        printf("0x%03x: ", _cols*iy);
-        for(int ix = 0; ix < _cols; ++ix)
-            printf("%02x ", memory[_cols*iy + ix]);
-        printf("\n");
-    }
-    printf("######## REGISTERS ########\n");
-    printf("PC: 0x%03x\nSP: 0x%03x\nI: %i\nST: %i\nDT: %i\n", PC, SP, I, ST, DT);
-    for(int i=0; i<16; ++i)
-        printf("V%x: %i\n", i, V[i]);
-    printf("######## STACK ########\n");
-    for(int i=0; i<16; ++i)
-        printf("0x%03x: 0x%03x\n", i, stack[i]);
+    this->print_memory(_cols);
+    this->print_registers();
 }
 
 void chip8::print_memory(int _cols)
@@ -610,10 +596,11 @@ void chip8::print_registers()
     printf("######## REGISTERS ########\n");
     printf("PC: 0x%03x\nSP: 0x%03x\nI: %i\nST: %i\nDT: %i\n", PC, SP, I, ST, DT);
     for(int i=0; i<16; ++i)
-        printf("V%x: %i\n", i, V[i]);
-    printf("######## STACK ########\n");
+        printf("V%x: %i |", i, V[i]);
+    printf("\n######## STACK ########\n");
     for(int i=0; i<16; ++i)
-        printf("0x%03x: 0x%03x\n", i, stack[i]);
+        printf("0x%03x: 0x%03x |", i, stack[i]);
+    printf("\n");
 }
 
 void chip8::print_ROM(int _len, int _cols)
