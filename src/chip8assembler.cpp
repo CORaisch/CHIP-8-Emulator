@@ -199,11 +199,14 @@ int main(int argc, char** argv)
         printf("\n");
     }
 
+    // swap endian before saving to disk
+    for(size_t i=0; i < machinecode.size(); ++i)
+        machinecode[i] = (machinecode[i] >> 8) | (machinecode[i] << 8);
+
     // save machine code to disk
-    std::ofstream ostream(str_file_out.c_str(), std::ofstream::out | std::ofstream::binary);
-    for(size_t i=0; i<machinecode.size(); ++i)
-        ostream << std::hex << machinecode[i] << std::endl;
-    ostream.close();
+    FILE* pFile = fopen(str_file_out.c_str(), "wb");
+    fwrite(&machinecode[0], sizeof(uint16_t), machinecode.size(), pFile);
+    fclose(pFile);
     printf("output written to \"%s\"\n", str_file_out.c_str());
 
     return EXIT_SUCCESS;
