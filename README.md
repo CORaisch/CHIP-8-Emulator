@@ -1,5 +1,4 @@
-#+TITLE: CHIP-8 Emulator
-#+TOC:nil
+# CHIP-8 Emulator
 
 # Build
 ```bash
