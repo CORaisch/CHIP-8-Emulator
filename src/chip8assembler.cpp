@@ -1,48 +1,10 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <cstring>
-#include <string>
-#include <streambuf>
-#include <fstream>
-#include <vector>
-#include <map>
+#include "chip8assembler.h"
 #include <deque>
-#include <algorithm>
+#include <fstream>
+#include <string.h>
 
-/* function prototypes */
-bool parseArgs(int argc, char** argv);
-void printUsage();
-bool assemble(const std::deque<std::string>& command, const std::string& cmd);
-bool isRegister(const std::string& arg);
-bool markerExists(const std::string& cmd, const std::string& marker);
-bool checkNumArgs(const std::string& mnemonic, const std::string& cmd, int n_required, int n_given);
-bool checkAddrRange(const std::string& cmd, const uint16_t addr);
-bool checkRegRange(const std::string& cmd, const int reg);
-bool checkRegRange(const std::string& cmd, const long reg);
-bool checkConstRange(const std::string& cmd, const long lconst);
-bool checkConstRange(const std::string& cmd, const int iconst);
-bool checkNibbleRange(const std::string& cmd, const long lnibble);
-bool checkNibbleRange(const std::string& cmd, const int inibble);
-bool checkI(const std::string& cmd, const std::string& arg);
-bool getRegister(const std::string& cmd, const std::string& reg, uint8_t& ret);
-bool getConst(const std::string& cmd, const std::string& sconst, uint8_t& ret);
-bool getNibble(const std::string& cmd, const std::string& snibble, uint8_t& ret);
-
-/* globals */
-bool bVerbose = false;
-std::string str_file_in = "../code/TEST.ch8";
-std::string str_file_out;
-enum mnemonics {CLS, RET, SYS, JP, CALL, SE, SNE, LD, ADD, OR, AND, XOR, SUB, SHR, SUBN, SHL, RND, DRW, SKP, SKNP};
-std::map<std::string, int> map_mnemonic;
-std::map<std::string, uint16_t> markers;
-std::vector<uint16_t> machinecode;
-
-int main(int argc, char** argv)
+chip8assembler::chip8assembler(const std::string& file, bool verbose = false) : verbose(verbose)
 {
-    // read in args from command line
-    if(!parseArgs(argc, argv))
-        return EXIT_FAILURE;
-
     // load mnemonic mapping to enum, which will be used later at the assembling step
     map_mnemonic["CLS"] = CLS;   map_mnemonic["cls"] = CLS;
     map_mnemonic["RET"] = RET;   map_mnemonic["ret"] = RET;
@@ -66,79 +28,124 @@ int main(int argc, char** argv)
     map_mnemonic["SKNP"] = SKNP; map_mnemonic["sknp"] = SKNP;
 
     // open file stream
-    printf("assemble file \"%s\"\n", str_file_in.c_str());
-    std::string strCode;
-    std::ifstream istream(str_file_in.c_str());
+    printf("assemble file \"%s\"\n", file.c_str());
+    std::ifstream istream(file.c_str());
     // reserve number of chars needed
     istream.seekg(0, std::ios::end);
-    strCode.reserve(istream.tellg());
+    code.reserve(istream.tellg());
     istream.seekg(0, std::ios::beg);
     // load chars of file into string
-    strCode.assign(std::istreambuf_iterator<char>(istream), std::istreambuf_iterator<char>());
+    code.assign(std::istreambuf_iterator<char>(istream),
+                std::istreambuf_iterator<char>());
     istream.close();
+}
 
-    // iterate file char-wise and cut whitespace, newlines and comments - any different symbol is treated as token
-    char sWhitespace = ' '; char sIndent = '\t'; char sNewline = '\n'; char sComment = '#'; char sComma = ','; char sMarker = ':';
+void chip8assembler::writeMachinecode(const std::string &out)
+{
+    // save machine code to disk
+    FILE* pFile = fopen(out.c_str(), "wb");
+    fwrite(&(this->machinecode[0]), sizeof(uint16_t), this->machinecode.size(), pFile);
+    fclose(pFile);
+    printf("output written to \"%s\"\n", out.c_str());
+}
+
+void chip8assembler::swapEndian()
+{
+    for(size_t i=0; i < this->machinecode.size(); ++i)
+      this->machinecode[i] = (this->machinecode[i] >> 8) | (this->machinecode[i] << 8);
+}
+
+bool chip8assembler::compile()
+{
+    /*  parse code */
     std::vector<std::deque<std::string>> tokens;
+    this->parse(tokens);
+    if(verbose) // if verbose flag is set, print parsed output
+    {
+        printf("#### PARSED ####\n");
+        for(size_t i=0; i<tokens.size(); ++i)
+        {
+            printf("%li: ", i);
+            for(auto t : tokens[i]) printf("%s ", t.c_str());
+            printf("\n");
+        }
+    }
+
+    if(verbose) printf("#### ASSEMBLING ... ####\n");
+    /* assembly code */
+    if(!this->assemble(tokens))
+    {
+        printf("Error encountered at assembly");
+        return false;
+    }
+
+    if(verbose) // if verbose flag is set, print address markers
+    {
+        printf("#### ASSEMBLING DONE ####\n");
+        printf("\n#### MARKERS ####\n");
+        for(auto it=markers.begin(); it!=markers.end(); ++it)
+            printf("marker: %s -> address: 0x%03x\n", (it->first).c_str(), it->second);
+        printf("\n#### MACHINE CODE ####\n");
+        for(size_t i=0; i<machinecode.size(); ++i)
+            printf("0x%03lx: %04x\n", i+0x200, machinecode[i]);
+        printf("\n");
+    }
+
+    return true;
+}
+
+void chip8assembler::parse(std::vector<std::deque<std::string>>& tokens)
+{
+    // iterate file char-wise and cut whitespace, newlines and comments - any different symbol is treated as token
     std::deque<std::string> tokensLine;
-    for(std::string::size_type p = 0; p < strCode.size(); ++p)
+    for(std::string::size_type p = 0; p < code.size(); ++p)
     {
         // extract all tokens of current line
         // token := all chars between {whitespace, comma, newline} and {whitespace, comma, comment, newline}
-        while((p < strCode.size()) && (strCode[p] != sNewline) && (strCode[p] != sComment))
+        while((p < code.size()) && (code[p] != sNewline) && (code[p] != sComment))
         {
             // skip all symbols till {whitespace, indent, newline, comment, comma} occurs
             std::string::size_type p0 = p;
-            for(; (p < strCode.size()) && (strCode[p] != sWhitespace) && (strCode[p] != sIndent) && (strCode[p] != sNewline) && (strCode[p] != sComment) && (strCode[p] != sComma); ++p);
+            for(; (p < code.size()) && (code[p] != sWhitespace) && (code[p] != sIndent) && (code[p] != sNewline) && (code[p] != sComment) && (code[p] != sComma); ++p);
             // save word from p0 to current position p
             size_t len = p - p0;
             if(len > 0) // tokens of size 0 can occur but aren't valid (e.g. V0, 1 (whitespace after comma))
             {
-                std::string token = strCode.substr(p0, len);
+                std::string token = code.substr(p0, len);
                 tokensLine.emplace_back(token);
             }
             // if {newline, comment, EOF} follows last token then make new line token-vector
-            if(p == strCode.size() || strCode[p] == sNewline || strCode[p] == sComment)
+            if(p == code.size() || code[p] == sNewline || code[p] == sComment)
             {
                 // do not save line tokens if:
                 //// last token was a marker (we want to treat markers as if they where defined at the same line where they refer to) OR
                 //// current symbol is EOF (if file ends on last written character)
-                if((strCode[p-1] != sMarker) || (p == strCode.size()))
+                if((code[p-1] != sMarker) || (p == code.size()))
                 {
                     tokens.emplace_back(tokensLine);
                     tokensLine.clear();
                 }
             }
             // if token ended on {whitespace, comma, tab} simply skip it
-            if(strCode[p] == sComma || strCode[p] == sWhitespace || strCode[p] == sIndent)
+            if(code[p] == sComma || code[p] == sWhitespace || code[p] == sIndent)
                 p++;
         }
         // if last char was a comment, skip all chars till next newline
-        if((p < strCode.size()) && (strCode[p] == sComment))
-            for(; (p < strCode.size()) && (strCode[p] != sNewline); ++p);
-        // NOTE INVARIANT: when ending up here strCode[p] == '\n'
+        if((p < code.size()) && (code[p] == sComment))
+            for(; (p < code.size()) && (code[p] != sNewline); ++p);
+        // NOTE INVARIANT: when ending up here code[p] == '\n'
     }
 
     // if last line in file ends on {whitespace, tab, comma} we need to manually store last line of tokens
     if(!tokensLine.empty())
         tokens.emplace_back(tokensLine);
+}
 
-    // if verbose flag is set, print parsed output
-    if(bVerbose)
-    {
-        printf("#### PARSED ASSEMBLY ####\n");
-        for(size_t i=0; i<tokens.size(); ++i)
-        {
-            printf("%li: ", i);
-            for(auto t : tokens[i])
-                printf("%s ", t.c_str());
-            printf("\n");
-        }
-    }
-
-    /* assembly loop */
+bool chip8assembler::assemble(std::vector<std::deque<std::string>>& tokens)
+{
     // reserve memory for machinecode
-    machinecode.reserve(tokens.size());
+    this->machinecode.clear(); this->markers.clear();
+    this->machinecode.reserve(tokens.size());
     // 1 iteration: find and add markers
     for(size_t i=0; i<tokens.size(); ++i)
     {
@@ -161,18 +168,7 @@ int main(int argc, char** argv)
         }
     }
 
-    // if verbose flag is set, print address markers
-    if(bVerbose)
-    {
-        printf("\n#### MARKERS ####\n");
-        std::map<std::string, uint16_t>::iterator it;
-        for(it=markers.begin(); it!=markers.end(); ++it)
-            printf("marker: %s -> address: 0x%03x\n", (it->first).c_str(), it->second);
-        printf("\n");
-    }
-
     // 2nd iteration: assemble code
-    printf("#### ASSEMBLING .... ####\n");
     for(size_t i=0; i<tokens.size(); ++i)
     {
         // compose complete command string
@@ -181,141 +177,151 @@ int main(int argc, char** argv)
         strCommand.pop_back(); // pop last space -> cosmetics
 
         // assemble line by line
-        if(!assemble(tokens[i], strCommand))
+        if(!assembleCommand(tokens[i], strCommand))
         {
             // error case
             fprintf(stderr, "ERROR: couldn't assemble command \"%s\"\n", strCommand.c_str());
-            break;
+            return false;
         }
     }
-    printf("#### ASSEMBLING DONE ####\n");
 
-    // if verbose flag is set, print assembled machine code
-    if(bVerbose)
-    {
-        printf("\n#### MACHINE CODE ####\n");
-        for(size_t i=0; i<machinecode.size(); ++i)
-            printf("0x%03lx: %04x\n", i+0x200, machinecode[i]);
-        printf("\n");
-    }
-
-    // swap endian before saving to disk
-    for(size_t i=0; i < machinecode.size(); ++i)
-        machinecode[i] = (machinecode[i] >> 8) | (machinecode[i] << 8);
-
-    // save machine code to disk
-    FILE* pFile = fopen(str_file_out.c_str(), "wb");
-    fwrite(&machinecode[0], sizeof(uint16_t), machinecode.size(), pFile);
-    fclose(pFile);
-    printf("output written to \"%s\"\n", str_file_out.c_str());
-
-    return EXIT_SUCCESS;
+    return true;
 }
 
-bool isRegister(const std::string& arg)
+bool chip8assembler::isRegister(const std::string &arg)
 {
-    if((arg.front() == 'V') || (arg.front() == 'v'))
+    if ((arg.front() == 'V') || (arg.front() == 'v'))
         return true;
     else
         return false;
 }
 
-bool markerExists(const std::string& cmd, const std::string& marker)
+bool chip8assembler::markerExists(const std::string &cmd,
+                                  const std::string &marker)
 {
     // check if marker has an entry in markers map
-    if(markers.find(marker) == markers.end())
+    if (markers.find(marker) == markers.end())
     {
-        fprintf(stderr, "ERROR: marker \"%s\" is not defined (passed: %s).\n", marker.c_str(), cmd.c_str());
+        fprintf(stderr, "ERROR: marker \"%s\" is not defined (passed: %s).\n",
+                marker.c_str(), cmd.c_str());
         return false;
     }
     return true;
 }
 
-bool checkNumArgs(const std::string& mnemonic, const std::string& cmd, const int n_required, const int n_given)
+bool chip8assembler::checkNumArgs(const std::string &mnemonic,
+                                  const std::string &cmd, const int n_required,
+                                  const int n_given)
 {
-    if(n_given != n_required)
+    if (n_given != n_required)
     {
-        fprintf(stderr, "ERROR: invalid number of arguments for \"%s\" (passed: %s). Required: %i, Give: %i\n", mnemonic.c_str(), cmd.c_str(), n_required, n_given);
+        fprintf(stderr,
+                "ERROR: invalid number of arguments for \"%s\" (passed: %s). "
+                "Required: %i, Give: %i\n",
+                mnemonic.c_str(), cmd.c_str(), n_required, n_given);
         return false;
     }
     return true;
 }
 
-bool checkRegRange(const std::string& cmd, const int reg)
+bool chip8assembler::checkRegRange(const std::string &cmd, const int reg)
 {
-    if(reg < 0 || reg >= 16)
+    if (reg < 0 || reg >= 16)
     {
-        fprintf(stderr, "ERROR: Register \"%i\" out of range (passed: %s). Register range from V0-VF.\n", reg, cmd.c_str());
+        fprintf(stderr,
+                "ERROR: Register \"%i\" out of range (passed: %s). Register range "
+                "from V0-VF.\n",
+                reg, cmd.c_str());
         return false;
     }
     return true;
 }
 
-bool checkRegRange(const std::string& cmd, const long reg)
+bool chip8assembler::checkRegRange(const std::string &cmd, const long reg)
 {
-    if(reg < 0 || reg >= 16)
+    if (reg < 0 || reg >= 16)
     {
-        fprintf(stderr, "ERROR: Register \"%li\" out of range (passed: %s). Register range from V0-VF.\n", reg, cmd.c_str());
+        fprintf(stderr,
+                "ERROR: Register \"%li\" out of range (passed: %s). Register range "
+                "from V0-VF.\n",
+                reg, cmd.c_str());
         return false;
     }
     return true;
 }
 
-bool checkAddrRange(const std::string& cmd, const uint16_t addr)
+bool chip8assembler::checkAddrRange(const std::string &cmd, const uint16_t addr)
 {
     // check if most significant nibble is set
-    if(0xF000 & addr)
-    {
+    if (0xF000 & addr) {
         // error case, address out of range
-        fprintf(stderr, "ERROR: Address out of range (passed: %s). Consider that original CHIP-8 only consits of 4K memory.\n", cmd.c_str());
+        fprintf(stderr,
+                "ERROR: Address out of range (passed: %s). Consider that original "
+                "CHIP-8 only consits of 4K memory.\n",
+                cmd.c_str());
         return false;
     }
     return true;
 }
 
-bool checkConstRange(const std::string& cmd, const long lconst)
+bool chip8assembler::checkConstRange(const std::string &cmd, const long lconst)
 {
-    // CHIP-8 only supports 8 bit constants so check if given number is representable by 8 bits
-    if(lconst >> 8) // check if only least significant byte is set
+    // CHIP-8 only supports 8 bit constants so check if given number is
+    // representable by 8 bits
+    if (lconst >> 8) // check if only least significant byte is set
     {
-        fprintf(stderr, "ERROR: constant \"%li\" is not representable by 1 byte (passed: %s). Remember, CHIP-8 is an 8 bit machine.\n", lconst, cmd.c_str());
+        fprintf(stderr,
+                "ERROR: constant \"%li\" is not representable by 1 byte (passed: "
+                "%s). Remember, CHIP-8 is an 8 bit machine.\n",
+                lconst, cmd.c_str());
         return false;
     }
     return true;
 }
 
-bool checkConstRange(const std::string& cmd, const int iconst)
+bool chip8assembler::checkConstRange(const std::string &cmd, const int iconst)
 {
-    // CHIP-8 only supports 8 bit constants so check if given number is representable by 8 bits
-    if(iconst >> 8) // check if only least significant byte is set
+    // CHIP-8 only supports 8 bit constants so check if given number is
+    // representable by 8 bits
+    if (iconst >> 8) // check if only least significant byte is set
     {
-        fprintf(stderr, "ERROR: constant \"%i\" is not representable by 1 byte (passed: %s). Remember, CHIP-8 is an 8 bit machine.\n", iconst, cmd.c_str());
+        fprintf(stderr,
+                "ERROR: constant \"%i\" is not representable by 1 byte (passed: "
+                "%s). Remember, CHIP-8 is an 8 bit machine.\n",
+                iconst, cmd.c_str());
         return false;
     }
     return true;
 }
 
-bool checkNibbleRange(const std::string& cmd, const long lnibble)
+bool chip8assembler::checkNibbleRange(const std::string &cmd,
+                                      const long lnibble)
 {
-    if(lnibble >> 4) // check if only least significant nibble is set
+    if (lnibble >> 4) // check if only least significant nibble is set
     {
-        fprintf(stderr, "ERROR: nibble \"%li\" is not representable by 4 bit (passed: %s).\n", lnibble, cmd.c_str());
+        fprintf(
+            stderr,
+            "ERROR: nibble \"%li\" is not representable by 4 bit (passed: %s).\n",
+            lnibble, cmd.c_str());
         return false;
     }
     return true;
 }
 
-bool checkNibbleRange(const std::string& cmd, const int inibble)
+bool chip8assembler::checkNibbleRange(const std::string &cmd, const int inibble)
 {
-    if(inibble >> 4) // check if only least significant nibble is set
+    if (inibble >> 4) // check if only least significant nibble is set
     {
-        fprintf(stderr, "ERROR: nibble \"%i\" is not representable by 4 bit (passed: %s).\n", inibble, cmd.c_str());
+        fprintf(
+            stderr,
+            "ERROR: nibble \"%i\" is not representable by 4 bit (passed: %s).\n",
+            inibble, cmd.c_str());
         return false;
     }
     return true;
 }
 
-bool getRegister(const std::string& cmd, const std::string& reg, uint8_t& ret)
+bool chip8assembler::getRegister(const std::string& cmd, const std::string& reg, uint8_t& ret)
 {
     // extract substring with register number
     const std::string regno = reg.substr(1, reg.size()-1);
@@ -349,7 +355,7 @@ bool getRegister(const std::string& cmd, const std::string& reg, uint8_t& ret)
     }
 }
 
-bool getConst(const std::string& cmd, const std::string& sconst, uint8_t& ret)
+bool chip8assembler::getConst(const std::string& cmd, const std::string& sconst, uint8_t& ret)
 {
     // NOTE constants in CHIP-8 are always coded in 8 bit
     bool result = false;
@@ -395,7 +401,7 @@ bool getConst(const std::string& cmd, const std::string& sconst, uint8_t& ret)
     return result;
 }
 
-bool getNibble(const std::string& cmd, const std::string& snibble, uint8_t& ret)
+bool chip8assembler::getNibble(const std::string& cmd, const std::string& snibble, uint8_t& ret)
 {
     // nibble can be given either coded decimal or hexadecimal
     // if nibble is coded hexadecimal it must be given with prefix 0x
@@ -435,22 +441,18 @@ bool getNibble(const std::string& cmd, const std::string& snibble, uint8_t& ret)
     {
         // error case: nibble is either coded hexadecimal nor decimal
         fprintf(stderr, "ERROR: nibbles are only allowed to be coded decimal or hexadecimal. hexadecimal coded nibbles need to be prefixed by \"0x\" (passed: %s).\n", cmd.c_str());
-        return true;
-    }
-}
-
-bool checkI(const std::string& cmd, const std::string& arg)
-{
-    // check if arg only consits of letter 'I'
-    if(arg.compare("I"))
-    {
-        // fprintf(stderr, "ERROR: required I as an argument but given %s (passed: %s).\n", arg.c_str(), cmd.c_str());
         return false;
     }
-    return true;
+    // if reach here, wrong coding of nibble
+    return false;
 }
 
-bool assemble(const std::deque<std::string>& command, const std::string& cmd)
+bool chip8assembler::checkI(const std::string &cmd, const std::string &arg)
+{
+    return !bool(arg.compare("I"));
+}
+
+bool chip8assembler::assembleCommand(const std::deque<std::string>& command, const std::string& cmd)
 {
     // get mnemonic
     std::string mnemonic = command.front();
@@ -977,75 +979,4 @@ bool assemble(const std::deque<std::string>& command, const std::string& cmd)
 
     // if reached this line everything went fine
     return true;
-}
-
-bool parseArgs(int argc, char** argv)
-{
-    // local helpers
-    bool bOutputSet = false;
-
-    // parse commandline arguments
-    for (int i = 1; i < argc; ++i)
-    {
-        // print usage on demand
-        if(!std::strcmp(argv[i], "-h") || !std::strcmp(argv[i], "--help"))
-        {
-            printUsage();
-            return false;
-        }
-        // check for input filename
-        if(!std::strcmp(argv[i], "-i") || !std::strcmp(argv[i], "--input"))
-        {
-            i++;
-            if(i < argc)
-            {
-                str_file_in = argv[i];
-            }
-            else
-                return false;
-        }
-        // check for output filename
-        if(!std::strcmp(argv[i], "-o") || !std::strcmp(argv[i], "--output"))
-        {
-            i++;
-            if(i < argc)
-            {
-                bOutputSet = true;
-                str_file_out = argv[i];
-            }
-            else
-                return false;
-        }
-        // check for verbose flag
-        if(!std::strcmp(argv[i], "-v") || !std::strcmp(argv[i], "--verbose"))
-        {
-            bVerbose = true;
-        }
-    }
-
-    // if no output filename was given cut ending of input file and use input capitalized filename for output
-    if(!bOutputSet)
-    {
-        // cut path from filename
-        str_file_out = str_file_in.substr(str_file_in.find_last_of("/")+1);
-        // cut file extension of input filename if exists
-        size_t pos_ext;
-        if((pos_ext = str_file_out.find_last_of(".")) != std::string::npos)
-            str_file_out = str_file_out.substr(0, pos_ext);
-        // set capitalized cut input filename as output filename
-        std::transform(str_file_out.begin(), str_file_out.end(), str_file_out.begin(), ::toupper);
-    }
-
-    return true;
-}
-
-void printUsage()
-{
-    printf( "Usage: chip8disassembly [OPTION]...\n");
-    printf( "By default chip8disassembly starts disassembling the MAZE program, which is good for debugging.\n");
-    printf( "\nOptions:\n");
-    printf( "-h --help                                print usage\n");
-    printf( "-i --input PATH/TO/ROM                   set input filename\n");
-    printf( "-o --output PATH/TO/ROM                  set output filename\n");
-    printf( "-v --verbose                             activate for many outputs\n");
 }

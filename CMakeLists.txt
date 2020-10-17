@@ -6,10 +6,10 @@ set (CMAKE_CXX_STANDARD 11)
 include_directories (${PROJECT_SOURCE_DIR}/include)
 
 # make disassembler
-add_executable (chip8-disassembly src/chip8disassembler.cpp src/chip8.cpp)
+add_executable (chip8-disassembly src/chip8disassembler.cpp src/chip8processor.cpp)
 
 # make assembler
-add_executable (chip8-assembly src/chip8assembler.cpp)
+add_executable (chip8-assembly src/chip8assembly.cpp src/chip8assembler.cpp)
 
 # make emulator
-add_executable (chip8-emulate src/chip8emulator.cpp src/chip8.cpp)
+add_executable (chip8-emulate src/chip8emulator.cpp src/chip8processor.cpp)
