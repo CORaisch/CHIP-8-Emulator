@@ -5,10 +5,9 @@
 #include <string>
 #include <set>
 
-std::vector<std::string> splitpath(const std::string& str, const std::set<char> delimiters)
+void splitpath(const std::string& str, std::vector<std::string>& out, const std::set<char>& delimiters)
 {
-    std::vector<std::string> result;
-
+    out.clear();
     char const* pch = str.c_str();
     char const* start = pch;
     for(; *pch; ++pch)
@@ -18,18 +17,16 @@ std::vector<std::string> splitpath(const std::string& str, const std::set<char> 
             if(start != pch)
             {
                 std::string str(start, pch);
-                result.push_back(str);
+                out.push_back(str);
             }
             else
             {
-                result.push_back("");
+                out.push_back("");
             }
             start = pch+1;
         }
     }
-    result.push_back(start);
-
-    return result;
+    out.push_back(start);
 }
 
 #endif
