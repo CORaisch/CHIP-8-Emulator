@@ -1,18 +1,15 @@
 #ifndef CHIP8_H
 #define CHIP8_H
 
-#include <stdio.h>
-#include <cstdlib>
 #include <cstdint>
 #include <string>
 
-class chip8
+class chip8processor
 {
 public:
-    chip8() {}
-    ~chip8();
+    chip8processor();
+    ~chip8processor();
 
-    void init();
     int load_ROM(std::string _filename);
     bool is_running();
     int fetch_command();

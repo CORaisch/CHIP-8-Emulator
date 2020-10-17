@@ -1,4 +1,4 @@
-#include "chip8.h"
+#include "chip8processor.h"
 #include <cstring>
 
 /* function prototypes */
@@ -16,8 +16,7 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
 
     // initialize chip8 emulator
-    chip8 CHIP_8;
-    CHIP_8.init();
+    chip8processor CHIP_8;
 
     // load ROM to emulate
     size_t lenROM = CHIP_8.load_ROM(strFilename);

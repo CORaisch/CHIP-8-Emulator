@@ -1,4 +1,4 @@
-#include "chip8.h"
+#include "chip8processor.h"
 #include <cstring>
 
 /* function prototypes */
@@ -18,8 +18,7 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
 
     // initialize chip8 emulator
-    chip8 CHIP_8;
-    CHIP_8.init();
+    chip8processor CHIP_8;
 
     // load ROM to emulate
     size_t lenROM = CHIP_8.load_ROM(strFilename);
@@ -123,10 +122,11 @@ bool parseArgs(int argc, char** argv)
 
 void printUsage()
 {
-    printf( "Usage: chip8disassembly [OPTION]...\n");
-    printf( "By default chip8disassembly starts disassembling the MAZE program, which is good for debugging.\n");
-    printf( "\nOptions:\n");
-    printf( "-h --help                                print usage\n");
-    printf( "-i --input PATH/TO/ROM                   set rom to disassemble\n");
-    printf( "-c --cols                               set columns of memory map\n");
+    printf("Usage: chip8disassembly [OPTION]...\n");
+    printf("By default chip8disassembly starts disassembling the MAZE program, which is good for debugging.\n");
+    printf("\nOptions:\n");
+    printf("-h --help                                print usage\n");
+    printf("-i --input PATH/TO/ROM                   set rom to disassemble\n");
+    printf("-c --cols                                set columns of memory map\n");
+    printf("-s --step                                enable step-by-step mode\n");
 }

@@ -1,15 +1,17 @@
-#include "chip8.h"
+#include "chip8processor.h"
 #include "utils.h"
+#include <cstdlib>
+#include <stdio.h>
 #include <string.h>
 
-chip8::~chip8()
+chip8processor::~chip8processor()
 {
     delete[] memory;
     delete[] stack;
     delete[] V;
 }
 
-void chip8::init()
+chip8processor::chip8processor()
 {
     // regular CHIP-8 machines run 4K of memory
     memory = new uint8_t[4096];
@@ -45,7 +47,7 @@ void chip8::init()
     printf("CHIP-8 System initialized successfully\n");
 }
 
-int chip8::load_ROM(std::string _filename)
+int chip8processor::load_ROM(std::string _filename)
 {
     // open file stream
     FILE *pfRom;
@@ -73,20 +75,20 @@ int chip8::load_ROM(std::string _filename)
     fclose(pfRom);
 
     // print name of ROM just loaded
-    std::set<char> delim{'/'};
-    std::vector<std::string> path = splitpath(_filename, delim);
+    std::set<char> delim{'/'}; std::vector<std::string> path;
+    splitpath(_filename, path, delim);
     printf("load ROM \"%s\"\n", path.back().c_str());
 
     // return size of file in bytes
     return nBytesFile;
 }
 
-bool chip8::is_running()
+bool chip8processor::is_running()
 {
     return running; // TODO figure out when to end emulation
 }
 
-int chip8::fetch_command()
+int chip8processor::fetch_command()
 {
     // check if PC is still in chip8 memory
     if(PC >= 0x0FFE)
@@ -105,7 +107,7 @@ int chip8::fetch_command()
     return PC-2;
 }
 
-int chip8::exec_command()
+int chip8processor::exec_command()
 {
     // don't execute command if it wasn't fetched properly
     if(command == FAIL_COMMAND)
@@ -160,7 +162,7 @@ int chip8::exec_command()
         // cmd: CALL addr
         // NOTE memory is not yet checked -> make it robust for segfaults
         uint16_t addr = command & 0x0FFF;
-        stack[SP++] = PC; // NOTE PC already points to next command (see chip8::fetch_command())
+        stack[SP++] = PC; // NOTE PC already points to next command (see chip8processor::fetch_command())
         PC = addr;
         break;
     }
@@ -394,7 +396,7 @@ int chip8::exec_command()
     return 0;
 }
 
-void chip8::disassemble_command()
+void chip8processor::disassemble_command()
 {
     // read opcode (most significant nibble at chip-8)
     uint8_t opcode = command >> 12;
@@ -572,13 +574,13 @@ void chip8::disassemble_command()
     }
 }
 
-void chip8::print_complete_memory_map(int _cols)
+void chip8processor::print_complete_memory_map(int _cols)
 {
     this->print_memory(_cols);
     this->print_registers();
 }
 
-void chip8::print_memory(int _cols)
+void chip8processor::print_memory(int _cols)
 {
     printf("######## MEMORY MAP ########\n");
     int rows = 4096/_cols;
@@ -591,7 +593,7 @@ void chip8::print_memory(int _cols)
     }
 }
 
-void chip8::print_registers()
+void chip8processor::print_registers()
 {
     printf("######## REGISTERS ########\n");
     printf("PC: 0x%03x\nSP: 0x%03x\nI: %i\nST: %i\nDT: %i\n", PC, SP, I, ST, DT);
@@ -603,7 +605,7 @@ void chip8::print_registers()
     printf("\n");
 }
 
-void chip8::print_ROM(int _len, int _cols)
+void chip8processor::print_ROM(int _len, int _cols)
 {
     printf("######## ROM CODE ########\n");
     int rows;
