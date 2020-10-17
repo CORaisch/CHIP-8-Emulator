@@ -1,3 +1,4 @@
 build/
 backup/
 roms/c8games.zip
+compile_commands.json
