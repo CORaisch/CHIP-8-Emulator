@@ -54,8 +54,9 @@ chip8processor::chip8processor(const chip8processor &o)
 
 chip8processor::chip8processor(chip8processor &&o) noexcept
     : memory{std::move(o.memory)}, V{std::move(o.V)}, stack{std::move(o.stack)},
-      PC{o.PC}, SP{o.SP}, command{o.command}, I{o.I}, ST{o.ST}, DT{o.DT},
-      running{o.running}
+      PC{std::move(o.PC)}, SP{std::move(o.SP)}, command{std::move(o.command)},
+      I{std::move(o.I)}, ST{std::move(o.ST)}, DT{std::move(o.DT)},
+      running{std::move(o.running)}
 {
     o.memory = nullptr;
     o.V = nullptr;
@@ -86,8 +87,9 @@ chip8processor &chip8processor::operator=(chip8processor &&o) noexcept
     memory = std::move(o.memory); V = std::move(o.V); stack = std::move(o.stack);
     o.memory = nullptr; o.V = nullptr; o.stack = nullptr;
 
-    PC = o.PC; SP = o.SP; command = o.command; I = o.I;
-    ST = o.ST; DT = o.DT; running = o.running;
+    PC = std::move(o.PC); SP = std::move(o.SP); command = std::move(o.command);
+    I = std::move(o.I); ST = std::move(o.ST); DT = std::move(o.DT);
+    running = std::move(o.running);
 
     return *this;
 }
