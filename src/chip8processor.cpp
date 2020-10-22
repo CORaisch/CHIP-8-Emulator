@@ -1,6 +1,8 @@
 #include "chip8processor.h"
 #include "utils.h"
+#include <bits/stdint-uintn.h>
 #include <cstdlib>
+#include <cstring>
 #include <stdio.h>
 #include <string.h>
 
@@ -12,75 +14,117 @@ chip8processor::~chip8processor()
 }
 
 chip8processor::chip8processor()
+    : memory{new uint8_t[4096]}, V{new uint8_t[16]}, stack{new uint16_t[16]},
+      PC{0x200}, SP{0}, command{0x0000}, I{0x000}, ST{0}, DT{0}, running{true}
 {
-    // regular CHIP-8 machines run 4K of memory
-    memory = new uint8_t[4096];
-    memset(memory, 0, sizeof(uint8_t)*4096);
-    // CHIP-8 has 16 8-Bit registers for general purpose
-    V = new uint8_t[16];
-    memset(V, 0, sizeof(uint8_t)*16);
-    // CHIP-8 allowed for maximal 16 nested subroutine calls
-    // the stack is not allowed for general purpose usage
-    stack = new uint16_t[16];
-    memset(stack, 0, sizeof(uint16_t)*16);
-    // user code is located from 0x200 onwards
-    PC = 0x200;
-    // stack initially is empty
-    SP = 0;
-    // no command fetched initially
-    command = 0x0000;
-    // no address is loaded initially in I
-    I  = 0x000;
-    // sound and delay timers are disabled initially
-    ST = 0;
-    DT = 0;
+  // regular CHIP-8 machines run 4K of memory
+  memset(memory, 0, sizeof(uint8_t) * 4096);
+  // CHIP-8 has 16 8-Bit registers for general purpose
+  memset(V, 0, sizeof(uint8_t) * 16);
+  // CHIP-8 allowed for maximal 16 nested subroutine calls
+  // the stack is not allowed for general purpose usage
+  memset(stack, 0, sizeof(uint16_t) * 16);
+  // seed random generator
+  time_t t;
+  srand((unsigned int)time(&t));
 
-    // set emulation state to running
-    running = true;
+  // TODO load fonts in memory at location [0x000, 0x200[
 
-    // seed random generator
-    time_t t;
-    srand((unsigned int) time(&t));
-
-    // TODO load fonts in memory at location [0x000, 0x200[
-
-    printf("CHIP-8 System initialized successfully\n");
+  printf("CHIP-8 System initialized successfully\n");
 }
 
-int chip8processor::load_ROM(std::string _filename)
+chip8processor::chip8processor(const chip8processor &o)
+    : memory{new uint8_t[4096]}, V{new uint8_t[16]}, stack{new uint16_t[16]},
+      PC{o.PC}, SP{o.SP}, command{o.command}, I{o.I}, ST{o.ST}, DT{o.DT},
+      running{o.running}
 {
-    // open file stream
-    FILE *pfRom;
-    pfRom = fopen(_filename.c_str(), "rb");
-    if(!pfRom)
-    {
-        printf("couldn't open file \"%s\"\n", _filename.c_str());
-        return -1;
-    }
+  // regular CHIP-8 machines run 4K of memory
+  std::memcpy(memory, o.memory, sizeof(uint8_t) * 4096);
+  // CHIP-8 has 16 8-Bit registers for general purpose
+  std::memcpy(V, o.V, sizeof(uint8_t) * 16);
+  // CHIP-8 allowed for maximal 16 nested subroutine calls
+  // the stack is not allowed for general purpose usage
+  std::memcpy(stack, o.stack, sizeof(uint16_t) * 16);
+  // seed random generator
+  time_t t;
+  srand((unsigned int)time(&t));
 
-    // get length of file
-    fseek(pfRom, 0L, SEEK_END);
-    size_t nBytesFile = ftell(pfRom);
-    fseek(pfRom, 0L, SEEK_SET);
+  // TODO load fonts in memory at location [0x000, 0x200[
+}
 
-    // copy rom bytes into CHIP-8 memory starting from address 0x200
-    size_t nRead = fread(memory+0x200, sizeof(uint8_t), nBytesFile, pfRom);
-    if(nRead != nBytesFile)
-    {
-        printf("number bytes read from file (%li) differs from file size (%li)\n", nRead, nBytesFile);
-        return -1;
-    }
+chip8processor::chip8processor(chip8processor &&o) noexcept
+    : memory{std::move(o.memory)}, V{std::move(o.V)}, stack{std::move(o.stack)},
+      PC{o.PC}, SP{o.SP}, command{o.command}, I{o.I}, ST{o.ST}, DT{o.DT},
+      running{o.running}
+{
+    o.memory = nullptr;
+    o.V = nullptr;
+    o.stack = nullptr;
+}
 
-    // close file stream
-    fclose(pfRom);
+chip8processor& chip8processor::operator=(const chip8processor &o)
+{
+    if(this == &o) return *this;
 
-    // print name of ROM just loaded
-    std::set<char> delim{'/'}; std::vector<std::string> path;
-    splitpath(_filename, path, delim);
-    printf("load ROM \"%s\"\n", path.back().c_str());
+    delete[] memory; delete[] V; delete[] stack;
+    memory = nullptr; V = nullptr; stack = nullptr;
+    std::memcpy(memory, o.memory, sizeof(uint8_t) * 4096);
+    std::memcpy(V, o.V, sizeof(uint8_t) * 16);
+    std::memcpy(stack, o.stack, sizeof(uint16_t) * 16);
 
-    // return size of file in bytes
-    return nBytesFile;
+    PC = o.PC; SP = o.SP; command = o.command; I = o.I;
+    ST = o.ST; DT = o.DT; running = o.running;
+
+    return *this;
+}
+
+chip8processor &chip8processor::operator=(chip8processor &&o) noexcept
+{
+    if(this == &o) return *this;
+
+    delete[] memory; delete[] V; delete[] stack;
+    memory = std::move(o.memory); V = std::move(o.V); stack = std::move(o.stack);
+    o.memory = nullptr; o.V = nullptr; o.stack = nullptr;
+
+    PC = o.PC; SP = o.SP; command = o.command; I = o.I;
+    ST = o.ST; DT = o.DT; running = o.running;
+
+    return *this;
+}
+
+int chip8processor::load_ROM(std::string _filename) {
+  // open file stream
+  FILE *pfRom;
+  pfRom = fopen(_filename.c_str(), "rb");
+  if (!pfRom) {
+    printf("couldn't open file \"%s\"\n", _filename.c_str());
+    return -1;
+  }
+
+  // get length of file
+  fseek(pfRom, 0L, SEEK_END);
+  size_t nBytesFile = ftell(pfRom);
+  fseek(pfRom, 0L, SEEK_SET);
+
+  // copy rom bytes into CHIP-8 memory starting from address 0x200
+  size_t nRead = fread(memory + 0x200, sizeof(uint8_t), nBytesFile, pfRom);
+  if (nRead != nBytesFile) {
+    printf("number bytes read from file (%li) differs from file size (%li)\n",
+           nRead, nBytesFile);
+    return -1;
+  }
+
+  // close file stream
+  fclose(pfRom);
+
+  // print name of ROM just loaded
+  std::set<char> delim{'/'};
+  std::vector<std::string> path;
+  splitpath(_filename, path, delim);
+  printf("load ROM \"%s\"\n", path.back().c_str());
+
+  // return size of file in bytes
+  return nBytesFile;
 }
 
 bool chip8processor::is_running()

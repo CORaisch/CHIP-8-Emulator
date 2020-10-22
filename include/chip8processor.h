@@ -9,6 +9,11 @@ class chip8processor
 public:
     chip8processor();
     ~chip8processor();
+    chip8processor(const chip8processor &o);
+    chip8processor(chip8processor &&o) noexcept;
+
+    chip8processor& operator=(const chip8processor &o);
+    chip8processor& operator=(chip8processor &&o) noexcept;
 
     int load_ROM(std::string _filename);
     bool is_running();
